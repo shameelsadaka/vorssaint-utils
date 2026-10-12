@@ -1278,7 +1278,7 @@ enum NotchControlSetupRequirement: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
+    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad, awayMode
     static let defaultHidden = "keyboardLight,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
     var id: String { rawValue }
 
@@ -1305,6 +1305,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .panel: return "bubble.middle.top"
         case .mixer: return NotchModule.mixer.symbol
         case .commandBar: return "command"
+        case .awayMode: return "moon.stars"
         case .scratchpad: return "note.text"
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
@@ -1321,6 +1322,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .screenshot: return .feature(.screenshot)
         case .recording: return .feature(.screenRecorder)
         case .commandBar: return .feature(.commandBar)
+        case .awayMode: return .feature(.awayMode)
         case .scratchpad: return .feature(.scratchpad)
         case .panel: return .none
         case .mixer: return .page(.mixer, feature: .mixer)
@@ -1343,6 +1345,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .recording: return AppFeature.screenRecorder.isAvailable(in: defaults)
         case .speedTest: return AppFeature.monitorNetwork.isAvailable(in: defaults) && NotchSupport.modules(in: defaults).contains(.system)
         case .commandBar: return AppFeature.commandBar.isAvailable(in: defaults)
+        case .awayMode: return AppFeature.awayMode.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
         case .panel: return true
         case .music: return NotchSupport.modules(in: defaults).contains(.music)

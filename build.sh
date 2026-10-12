@@ -331,6 +331,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchMusicCommandWriter.swift
         Sources/Vorssaint/Core/FeatureCatalog.swift
         Sources/Vorssaint/Core/FeaturePresets.swift
+        Sources/Vorssaint/Core/AwayModeStrings.swift
+        Sources/Vorssaint/Services/CleaningMode/AwayModeSupport.swift
         Sources/Vorssaint/Core/FeatureHubStrings.swift
         Sources/Vorssaint/Core/MixerScreenSharingStrings.swift
         Sources/Vorssaint/Core/ShortcutSettingsStrings.swift

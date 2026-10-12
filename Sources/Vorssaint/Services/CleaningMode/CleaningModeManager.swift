@@ -6,6 +6,8 @@ import ApplicationServices
 import Combine
 import CoreGraphics
 import SwiftUI
+import LocalAuthentication
+import IOKit.pwr_mgt
 
 /// "Cleaning mode" temporarily locks the keyboard so the user can wipe it down
 /// without typing gibberish, then restores it on a deliberate gesture. The lock
@@ -23,6 +25,19 @@ import SwiftUI
 final class CleaningModeManager: ObservableObject {
     static let shared = CleaningModeManager()
 
+    enum Mode { case cleaning, away }
+    @Published private(set) var mode: Mode = .cleaning
+    @Published private(set) var isAuthenticating = false
+    @Published private(set) var shortcutRegistrationFailed = false
+    private let awayHotkey = QuickToolHotkey(id: 81)
+    private var awayUnlock = AwayUnlockGesture()
+    private var authenticationContext: LAContext?
+    private var authenticationID: UUID?
+    private var awakeAssertion: IOPMAssertionID = 0
+    private var watchdog: Timer?
+    private var cursorHidden = false
+    private var sleepObserver: NSObjectProtocol?
+
     private static let systemDefinedEventType = CGEventType(rawValue: CleaningSystemKeyEvent.systemDefinedEventTypeRawValue)!
     private static let gestureEventType = CGEventType(rawValue: UInt32(NSEvent.EventType.gesture.rawValue))!
     private static let escapeKeyCode: Int64 = 53
@@ -31,6 +46,10 @@ final class CleaningModeManager: ObservableObject {
         .keyUp,
         .flagsChanged,
         .scrollWheel,
+        .mouseMoved,
+        .leftMouseDragged,
+        .rightMouseDragged,
+        .otherMouseDragged,
         .leftMouseDown,
         .leftMouseUp,
         .rightMouseDown,
@@ -77,6 +96,7 @@ final class CleaningModeManager: ObservableObject {
                                                     pressWindow: 6.0)
 
     private init() {
+        awayHotkey.onPress = { [weak self] in self?.activate(mode: .away) }
         // A switched-away login session cannot keep a filter tap in the input
         // chain. Cleaning is a temporary local state, so leaving the session
         // ends it; suspended features resume only after this session returns.
@@ -92,20 +112,45 @@ final class CleaningModeManager: ObservableObject {
         }
     }
 
+    func syncAwayPreferences() {
+        let available = AppFeature.awayMode.isAvailable
+        shortcutRegistrationFailed = !awayHotkey.sync(
+            enabled: available && !ShortcutCapture.isCapturing
+                && UserDefaults.standard.bool(forKey: DefaultsKey.awayModeShortcutEnabled),
+            shortcut: GlobalShortcutRole.awayMode.savedShortcut,
+            storageKey: DefaultsKey.awayModeShortcut)
+        if !available, isActive, mode == .away { deactivateForSystemTeardown() }
+    }
+
     func toggle() { isActive ? deactivate() : activate() }
 
     /// Starts the lock. No-op (and guides the user) when Accessibility is missing,
     /// because without the tap there would be no way to unlock the keyboard.
-    func activate() {
-        guard !isActive else { return }
+    func activate(mode requestedMode: Mode = .cleaning) {
+        guard !isActive, SessionActivity.shared.isActive,
+              (requestedMode == .away ? AppFeature.awayMode : .cleaningMode).isAvailable else { return }
+        guard !NSScreen.screens.isEmpty else { return }
+        if requestedMode == .away {
+            let context = LAContext()
+            var error: NSError?
+            guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
+                reportAwayFailure()
+                return
+            }
+        }
         // Check Accessibility explicitly (same gate the other event taps use) so a
         // missing grant is reported clearly, rather than inferred from a nil tap.
         guard Permissions.shared.accessibility else {
-            promptForAccessibility()
+            promptForAccessibility(for: requestedMode)
             return
         }
         mouseReleaseGate.reset()
-        guard installTap() else { return }
+        guard installTap() else {
+            if requestedMode == .away { reportAwayFailure() }
+            return
+        }
+        mode = requestedMode
+        awayUnlock.reset()
         // Debounce must not filter while the lock is up: its tap can run ahead
         // of ours (head-insert order depends on creation order) and would eat
         // the repeated same-key presses the unlock gesture counts on.
@@ -126,10 +171,31 @@ final class CleaningModeManager: ObservableObject {
         isActive = true
         installScreenObserver()
         showOverlays()
+        if isActive, mode == .away {
+            hideCursor()
+            if UserDefaults.standard.bool(forKey: DefaultsKey.awayModeKeepAwake) {
+                IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+                                           IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                                           "Away Mode" as CFString, &awakeAssertion)
+            }
+            // Fail open if permission, the tap or feature availability disappears.
+            watchdog = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                guard let self, self.isActive, self.mode == .away else { return }
+                guard AppFeature.awayMode.isAvailable, AXIsProcessTrusted(),
+                      self.isAuthenticating || self.tap.map({ CGEvent.tapIsEnabled(tap: $0) }) == true else {
+                    self.deactivateForSystemTeardown()
+                    return
+                }
+            }
+            sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+            ) { [weak self] _ in self?.deactivateForSystemTeardown() }
+        }
     }
 
     func deactivate() {
         guard isActive else { return }
+        if mode == .away { authenticateAway(); return }
         // If a click began while the overlay was up, keep the overlay and tap
         // alive until its real mouse-up passes through. Never manufacture a
         // release: the physical event is the only event that completes the click.
@@ -177,6 +243,17 @@ final class CleaningModeManager: ObservableObject {
 
     private func finishDeactivation(restoreSuspendedFeatures: Bool) {
         guard isActive else { return }
+        authenticationID = nil
+        authenticationContext?.invalidate()
+        authenticationContext = nil
+        isAuthenticating = false
+        awayUnlock.reset()
+        watchdog?.invalidate()
+        watchdog = nil
+        if let sleepObserver { NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver) }
+        sleepObserver = nil
+        if awakeAssertion != 0 { IOPMAssertionRelease(awakeAssertion); awakeAssertion = 0 }
+        showCursor()
         releaseDeadline?.cancel()
         releaseDeadline = nil
         mouseReleaseGate.reset()
@@ -245,6 +322,10 @@ final class CleaningModeManager: ObservableObject {
         // The system disables taps that stall or when the session locks; re-arm so
         // the keyboard stays locked instead of silently coming back.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if mode == .away {
+                DispatchQueue.main.async { [weak self] in self?.deactivateForSystemTeardown() }
+                return Unmanaged.passUnretained(event)
+            }
             if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
                 // A disabled tap creates an observation gap: any tracked mouseDown
                 // may already have received its real mouseUp while we were blind.
@@ -263,6 +344,26 @@ final class CleaningModeManager: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 self?.deactivate(restoreSuspendedFeatures: restoreSuspendedFeatures)
             }
+            return Unmanaged.passUnretained(event)
+        }
+
+        if mode == .away {
+            if type == .keyDown || type == .flagsChanged {
+                awayUnlock.keyDown(code: event.getIntegerValueField(.keyboardEventKeycode),
+                                   time: ProcessInfo.processInfo.systemUptime,
+                                   isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0)
+                unlockProgress = awayUnlock.progress
+            } else if type == .keyUp,
+                      awayUnlock.keyUp(code: event.getIntegerValueField(.keyboardEventKeycode)) {
+                DispatchQueue.main.async { [weak self] in self?.authenticateAway() }
+            } else if type == Self.systemDefinedEventType {
+                awayUnlock.reset()
+                unlockProgress = 0
+            }
+            return nil
+        }
+
+        if type == .mouseMoved || type == .leftMouseDragged || type == .rightMouseDragged || type == .otherMouseDragged {
             return Unmanaged.passUnretained(event)
         }
 
@@ -357,6 +458,18 @@ final class CleaningModeManager: ObservableObject {
 
     private func showOverlays() {
         let frames = NSScreen.screens.map(\.frame)
+        if mode == .away {
+            guard !frames.isEmpty else { deactivateForSystemTeardown(); return }
+            // Build replacements before removing old panels: hot-plugging must
+            // never intentionally uncover the desktop during the transition.
+            let old = overlays
+            let geometry = NotchService.shared.awayModeGeometry(in: NSScreen.screens)
+            overlays = frames.map { frame in
+                makeOverlay(frame: frame, awayGeometry: geometry?.screen == frame ? geometry : nil)
+            }
+            old.forEach { $0.orderOut(nil) }
+            return
+        }
         let targetFrames = frames.isEmpty
             ? [NSRect(x: 0, y: 0, width: 800, height: 600)]
             : frames
@@ -372,22 +485,29 @@ final class CleaningModeManager: ObservableObject {
         reusable.forEach { $0.orderOut(nil) }
     }
 
-    private func makeOverlay(frame: NSRect) -> NSPanel {
-        let panel = OverlayPanel(contentRect: frame,
+    private func makeOverlay(frame: NSRect, awayGeometry: NotchGeometry? = nil) -> NSPanel {
+        let panel = GuardOverlayPanel(contentRect: frame,
                                  styleMask: [.borderless, .nonactivatingPanel],
                                  backing: .buffered, defer: false)
+        panel.setFrame(frame, display: false)
         panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
+        panel.acceptsKeyboard = isAuthenticating
         // Above the menu bar and full-screen apps — the shielding level macOS uses
         // for its own lock-style windows.
         panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
+        panel.level = isAuthenticating ? .floating : panel.level
+        panel.backgroundColor = mode == .away ? .black : .clear
+        panel.isOpaque = mode == .away
         panel.hasShadow = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         // acceptsFirstMouse so the Unlock button fires on the very first click even
         // though the panel never becomes key or activates the app — otherwise that
         // click would just be absorbed as the window-activating click.
-        let host = OverlayHostingView(rootView: CleaningOverlayView())
+        let root = mode == .away
+            ? AnyView(AwayOverlayView(geometry: awayGeometry))
+            : AnyView(CleaningOverlayView())
+        let host = OverlayHostingView(rootView: root)
         host.frame = NSRect(origin: .zero, size: frame.size)
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
@@ -421,15 +541,88 @@ final class CleaningModeManager: ObservableObject {
 
     /// Hosting view that accepts the first click into the (non-key, non-activating)
     /// overlay panel, so the Unlock button works without a throwaway activating click.
-    private final class OverlayHostingView: NSHostingView<CleaningOverlayView> {
+    private final class OverlayHostingView: NSHostingView<AnyView> {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     }
 
-    private func promptForAccessibility() {
+    private final class GuardOverlayPanel: OverlayPanel {
+        var acceptsKeyboard = false
+        override var canBecomeKey: Bool { acceptsKeyboard }
+        override var canBecomeMain: Bool { false }
+    }
+
+    private func hideCursor() {
+        guard !cursorHidden else { return }
+        NSCursor.hide()
+        cursorHidden = true
+    }
+
+    private func showCursor() {
+        guard cursorHidden else { return }
+        NSCursor.unhide()
+        cursorHidden = false
+    }
+
+    private func authenticateAway() {
+        guard isActive, mode == .away, !isAuthenticating else { return }
+        let context = LAContext()
+        let id = UUID()
+        authenticationID = id
+        authenticationContext = context
+        isAuthenticating = true
+        unlockProgress = 0
+        // The system-owned password fallback needs real keyboard events. Keep
+        // opaque panels up, but lower them beneath macOS authentication UI.
+        removeTap()
+        showCursor()
+        overlays.forEach {
+            ($0 as? GuardOverlayPanel)?.acceptsKeyboard = true
+            $0.level = .floating
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        overlays.first?.makeKeyAndOrderFront(nil)
+        context.evaluatePolicy(.deviceOwnerAuthentication,
+                               localizedReason: AwayModeStrings.get(L10n.shared.language).authenticate) { [weak self] success, _ in
+            DispatchQueue.main.async {
+                guard let self, self.isActive, self.authenticationID == id else { return }
+                self.authenticationID = nil
+                self.authenticationContext = nil
+                self.isAuthenticating = false
+                if success {
+                    self.deactivateForSystemTeardown()
+                } else {
+                    self.awayUnlock.reset()
+                    guard SessionActivity.shared.isActive, AXIsProcessTrusted(), self.installTap() else {
+                        self.deactivateForSystemTeardown()
+                        return
+                    }
+                    self.overlays.forEach {
+                        ($0 as? GuardOverlayPanel)?.acceptsKeyboard = false
+                        $0.resignKey()
+                        $0.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+                        $0.orderFrontRegardless()
+                    }
+                    self.hideCursor()
+                }
+            }
+        }
+    }
+
+    private func reportAwayFailure() {
+        let alert = NSAlert()
+        let strings = AwayModeStrings.get(L10n.shared.language)
+        alert.messageText = strings.title
+        alert.informativeText = strings.unavailable
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+    }
+
+    private func promptForAccessibility(for requestedMode: Mode = .cleaning) {
         let strings = L10n.shared.s
         let alert = NSAlert()
-        alert.messageText = strings.cleaningNeedsAxTitle
-        alert.informativeText = strings.cleaningNeedsAxBody
+        let away = AwayModeStrings.get(L10n.shared.language)
+        alert.messageText = requestedMode == .away ? away.title : strings.cleaningNeedsAxTitle
+        alert.informativeText = requestedMode == .away ? away.unavailable : strings.cleaningNeedsAxBody
         alert.addButton(withTitle: strings.permissionOpenSettings)
         alert.addButton(withTitle: strings.uninstallerCancel)
         NSApp.activate(ignoringOtherApps: true)
