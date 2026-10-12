@@ -303,6 +303,9 @@ enum DefaultsKey {
     static let panelUtilityAwayMode = "panelUtilityAwayMode"
     static let awayModeShowAgents = "awayModeShowAgents"
     static let awayModeKeepAwake = "awayModeKeepAwake"
+    static let awayModeOverlayEnabled = "awayModeOverlayEnabled"
+    static let awayModeOverlayOpacity = "awayModeOverlayOpacity"
+    static let awayModeBlurIntensity = "awayModeBlurIntensity"
     static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
@@ -1532,6 +1535,9 @@ enum Defaults {
         DefaultsKey.awayModeShortcutEnabled: false,
         DefaultsKey.panelUtilityAwayMode: true,
         DefaultsKey.awayModeKeepAwake: true,
+        DefaultsKey.awayModeOverlayEnabled: true,
+        DefaultsKey.awayModeOverlayOpacity: 0.5,
+        DefaultsKey.awayModeBlurIntensity: 1.0,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.uninstallerCommandBarEnabled: false,

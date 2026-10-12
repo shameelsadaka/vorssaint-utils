@@ -2,7 +2,7 @@
 
 An opt-in utility for leaving a Mac running without leaving its keyboard,
 trackpad or mouse available for accidental input. Every connected display gets
-an opaque black overlay. Display brightness is never changed, so the feature
+a native behind-window blur with a 50% black tint by default. Display brightness is never changed, so the feature
 also works with monitors that do not expose hardware brightness controls.
 
 ## Experience
@@ -14,18 +14,30 @@ custom global shortcut; its suggested combination is Control–Option–Command�
 and registration is off until enabled. Menu and Island visibility use their
 existing customization preferences.
 
-The selected Dynamic Island display shows one small Island surface with activity cards for the AI agents
-already enabled in Dynamic Island. It uses the existing local session reader;
-it does not introduce a cloud service, account, independent reader or background
-poller for agent logs. Up to three live sessions appear, ordered consistently.
-Agent names, working/finished status and elapsed time are shown. Project paths, prompts,
-transcripts and model responses are not displayed. Stale sessions disappear.
-A completion event appears briefly before the display returns to its idle state.
-
-When there is no agent activity, a small original orbit illustration animates
-at no more than five frames per second. Reduce Motion disables animation. The orbit occupies the same Island surface;
-secondary screens remain entirely black. No overlay headings, idle captions,
-unlock hints or progress dots are shown. No character, personality, chat or Bonk media is included.
+Every connected display shows the approved twelve-frame white planet
+animation centered over the dimmed, blurred desktop. The planet is registered to the same center in every
+frame while the rings rotate and wobble. Its viewport is fixed at 201 × 138.19 macOS points on every display,
+matching the reviewed prototype on the 1512-point MacBook display, and advances every 240 ms (2.88 seconds per loop).
+Reduce Motion holds the first frame. Reduce Transparency uses an opaque black
+backdrop. Animation phases stay synchronized across displays; black sprite
+backgrounds become transparent so the logo has no rectangular backing.
+The old Island shell is absent. Compact agent cards below the logo reuse the
+Island’s card surface, provider marks, status pulse, and elapsed-time formatter.
+They follow its enabled integrations (Claude, Codex, OpenCode and Copilot),
+with one card per working provider. Only real completion events show a finished
+card and its recorded duration; disappearing or stale activity is not treated
+as success. Completions observed during this Away session remain until a new
+turn replaces them or Away Mode ends. Historical usage alone creates no cards.
+The AI activity toggle hides these cards without changing tracking preferences. A subtle 12-point unlock
+hint sits 24 points above the bottom edge on every display. A rounded Esc keycap
+sits inside a conversational countdown: “Ready to return? Tap [esc] 3 times,”
+then the same sentence with “2 times” and “1 time.” Each side reserves the
+widest localized text, keeping the keycap fixed. Only the isolated number has a short counter transition;
+the surrounding words do not animate. The keycap scales around its fixed center on
+Escape key-down and springs back on release, with a short hold for quick taps.
+Reduce Motion uses a color change without movement. The countdown resets after an interrupted or expired sequence, and hides
+while authentication is requested. Disabling the overlay also hides the hint.
+The menu bar, Island launch action and shortcut remain available before activation.
 
 Press **Escape three times**, with less than two seconds between presses, then
 release the key. macOS asks for **Touch ID or the Mac password**. Successful
@@ -35,7 +47,12 @@ sequence.
 
 All Away Mode preferences, including visibility and shortcuts, are included in settings backup:
 
-- Show AI-agent activity: enabled by default; turn it off for the orbit alone.
+- Screen overlay: enabled by default. Turning it off hides the backdrop and logo
+  on all displays while input remains guarded; the same unlock gesture applies.
+- Overlay opacity: 50% by default, adjustable from 0% to 100%.
+- Blur intensity: 100% by default, adjustable from 0% (off) to 100%. This blends
+  the native blur material; macOS controls its radius. Reduce Transparency uses
+  a solid black backdrop when the overlay is enabled.
 - Keep Mac and displays awake: enabled by default for the duration of this mode.
   The temporary power assertion is released on exit; existing Keep Awake
   preferences are not modified. This does not override deliberate sleep or
@@ -54,7 +71,7 @@ Unlock button. Away Mode also suppresses mouse movement, clicks, dragging,
 scrolling, modifier events, media keys and gestures delivered to its event tap.
 Its three-Escape gesture requests authentication, not direct deactivation.
 
-Opaque panels cover each display and are rebuilt after display changes. A
+Backdrop panels cover each display and are rebuilt after display changes. A
 watchdog ends the mode if Accessibility, feature availability or the input tap
 is lost. Session changes, sleep and application teardown release owned resources
 and restore control. Pending authentication callbacks are ignored after teardown.
@@ -72,7 +89,10 @@ Black pixels do not turn off an LCD's backlight. This solves visual blackout
 without depending on DDC or brightness APIs; it does not promise the power
 savings of switching displays off.
 
-The orbit is original code-drawn artwork. This is a source contribution in an
+The animation uses the approved OpenAI-generated sprite sheet derived from the
+Vorssaint logo. `Tools/prepare-away-logo.swift` reproduces the prototype frame
+registration and packages twelve native PNG frames from `Resources/Brand/AwayLogo-sheet.jpg`.
+This artwork follows the upstream brand restrictions. This is a source contribution in an
 unofficial fork, not an official Vorssaint release. Redistributed application
 builds must follow the upstream branding policy in `TRADEMARKS.md`.
 
@@ -96,6 +116,19 @@ passed. The eight suites above ran 95,959 checks: 95,958 passed, including all
 checkout of upstream commit `fe24c17` passed that suite once and failed the same
 assertion on a second run. That intermittent baseline failure is left unchanged.
 
+Appearance settings verification (2026-10-12): Developer build and selftest passed;
+targeted Away Mode and settings suites passed all 548 checks. Hidden native view
+renders verified 0%, 50% and 100% tint opacity, the white logo, and clearing both
+logo and backdrop when the overlay is disabled. Live blur appearance and input
+interactions remain manual checks.
+
+Agent-card verification (2026-10-12): the Away Mode, agent and settings suites
+passed all 1,326 checks, including concurrent providers, completion delivery
+independent of alerts, stale snapshots, new turns and disabled integrations.
+A hidden native render of production Island card components with fixture data
+was visually checked for active Claude and completed Codex cards. Live agent
+work and authentication are still user-driven checks.
+
 A real interaction test is still required before calling this release-ready:
 
 - Grant Accessibility, start from the menu bar, Dynamic Island, configured shortcut, Settings and Command Bar, and verify keyboard,
@@ -105,8 +138,8 @@ A real interaction test is still required before calling this release-ready:
   works and its Unlock button remains clickable.
 - Check multiple monitors, negative display coordinates, full-screen Spaces,
   disconnect/reconnect, screen resolution changes and the menu bar/notch region.
-- Confirm running agents update, completion returns to idle, disabled agents do
-  not appear, Reduce Motion is respected and no project or prompt text leaks.
+- Confirm the twelve frames loop at the approved size, the planet stays centered,
+  all connected displays show the logo, and Reduce Motion holds a static frame.
 - Verify permission loss, disabled taps, sleep/wake, session switching and app
   termination restore control, cursor visibility and the prior power state.
 

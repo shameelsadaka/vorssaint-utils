@@ -3,156 +3,218 @@
 
 import SwiftUI
 
-/// Blackout panels cover every display. Only the chosen Island display gets
-/// content; the usual interactive Island is underneath, with no duplicate UI.
+/// A centered logo on every display over a dimmed, blurred desktop.
+/// Menu bar and Island launch actions remain separate from this passive screen.
 struct AwayOverlayView: View {
-    let geometry: NotchGeometry?
+    let displaySize: CGSize
+    @ObservedObject private var manager = CleaningModeManager.shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.awayModeShowAgents) private var showAgents = true
+    @AppStorage(DefaultsKey.awayModeOverlayEnabled) private var overlayEnabled = true
+    @AppStorage(DefaultsKey.awayModeOverlayOpacity) private var overlayOpacity = 0.5
+    @AppStorage(DefaultsKey.awayModeBlurIntensity) private var blurIntensity = 1.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.black
-            if let geometry { AwayActivityView(geometry: geometry) }
+        ZStack {
+            if overlayEnabled {
+                if !reduceTransparency, blurIntensity > 0 {
+                    AwayBackdropBlur(intensity: min(1, max(0, blurIntensity)))
+                }
+                Color.black.opacity(reduceTransparency ? 1 : min(1, max(0, overlayOpacity)))
+                if !AwayLogoFrames.images.isEmpty {
+                    TimelineView(.animation(minimumInterval: 0.24, paused: reduceMotion)) { timeline in
+                        let elapsed = max(0, timeline.date.timeIntervalSinceReferenceDate)
+                        let index = reduceMotion ? 0 : Int(elapsed / 0.24) % AwayLogoFrames.images.count
+                        Image(nsImage: AwayLogoFrames.images[index])
+                            .resizable()
+                            .interpolation(.high)
+                            // Match the approved 1512-point MacBook display on every
+                            // monitor. Points preserve UI size across Retina scales.
+                            .frame(width: 201, height: 201 * 440.0 / 640.0)
+                            .accessibilityHidden(true)
+                    }
+                }
+                if showAgents, !manager.awayAgentActivity.cards.isEmpty {
+                    AwayAgentCards(cards: manager.awayAgentActivity.cards, language: l10n.language)
+                        .frame(width: min(manager.awayAgentActivity.cards.count == 1 ? 246 : 500, max(220, displaySize.width - 48)))
+                        .frame(height: 144, alignment: .top)
+                        .offset(y: 201 * 440.0 / 640.0 / 2 + 20 + 72)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: displaySize.width, height: displaySize.height)
+        .overlay(alignment: .bottom) {
+            if overlayEnabled, !manager.isAuthenticating {
+                AwayUnlockHint(remaining: max(1, 3 - manager.unlockProgress),
+                               isPressed: manager.isAwayEscapePressed,
+                               text: AwayModeStrings.escapeCountdown(l10n.language, remaining: 3 - manager.unlockProgress),
+                               variants: (1...3).map { AwayModeStrings.escapeCountdown(l10n.language, remaining: $0) })
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
+            }
+        }
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
 }
 
-private struct AwayActivityView: View {
-    let geometry: NotchGeometry
-    @ObservedObject private var agents = AgentUsageService.shared
-    @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.awayModeShowAgents) private var showAgents = true
-    @State private var finished: (provider: AgentProvider, at: Date, duration: TimeInterval)?
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let enabled = showAgents && NotchAgentSupport.isEnabled()
-            let providers = Set(NotchAgentSupport.providers())
-            let sessions = enabled ? AwayModeSupport.liveSessions(
-                agents.snapshot.live, enabled: providers, now: timeline.date) : []
-            let completion = enabled ? finished.flatMap {
-                timeline.date.timeIntervalSince($0.at) < 20 && providers.contains($0.provider) ? $0 : nil
-            } : nil
-            AwayIslandView(geometry: geometry, sessions: sessions,
-                           finishedProvider: completion?.provider,
-                           finishedDuration: completion?.duration ?? 0,
-                           now: timeline.date, language: l10n.language)
-        }
-        .onReceive(agents.events) { event in
-            guard showAgents, NotchAgentSupport.isEnabled() else { return }
-            if case let .finished(provider, duration, _, _, _) = event,
-               NotchAgentSupport.providers().contains(provider) {
-                finished = (provider, Date(), duration)
-            }
-        }
+private enum AwayLogoFrames {
+    // Load once, not on each animation tick. Frames preserve the approved
+    // prototype's crop, planet alignment, dimensions and timing.
+    static let images: [NSImage] = (0..<12).compactMap { index in
+        guard let url = Bundle.main.url(forResource: String(format: "AwayLogo-%02d", index),
+                                        withExtension: "png", subdirectory: "Images") else { return nil }
+        return NSImage(contentsOf: url)
     }
 }
 
-/// A passive Island surface using the same outline, agent marks and card
-/// chrome as the interactive Island. No titles, idle captions or exit hints.
-struct AwayIslandView: View {
-    let geometry: NotchGeometry
-    let sessions: [AgentLiveSession]
-    var finishedProvider: AgentProvider? = nil
-    var finishedDuration: TimeInterval = 0
-    let now: Date
+/// Native behind-window blur keeps desktop contents frosted without capture.
+private struct AwayBackdropBlur: NSViewRepresentable {
+    let intensity: Double
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.appearance = NSAppearance(named: .darkAqua)
+        view.alphaValue = intensity
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        // AppKit owns the blur radius; blend the material to control intensity.
+        view.alphaValue = intensity
+    }
+}
+
+
+/// A keyboard cue, rather than a button: input remains handled by the guard.
+private struct AwayUnlockHint: View {
+    let remaining: Int
+    let isPressed: Bool
+    let text: String
+    let variants: [String]
+    @State private var keycapDown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 6) {
+            stableCaption(part: 0, alignment: .trailing)
+            Text("esc")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: 34, height: 25)
+                .background(.white.opacity(keycapDown ? 0.18 : 0.07), in: RoundedRectangle(cornerRadius: 6))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(.white.opacity(keycapDown ? 0.4 : 0.22), lineWidth: 0.75)
+                }
+                .shadow(color: .black.opacity(0.25), radius: 0, y: 2)
+                .scaleEffect(reduceMotion || !keycapDown ? 1 : 0.94, anchor: .center)
+                .animation(reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.7), value: keycapDown)
+            stableCaption(part: 1, alignment: .leading)
+        }
+        .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text.replacingOccurrences(of: "{esc}", with: "Escape"))
+        .task(id: isPressed) {
+            if isPressed {
+                keycapDown = true
+            } else {
+                // Keep even a very quick tap visible; a new press cancels this release.
+                do { try await Task.sleep(for: .milliseconds(100)) }
+                catch { return }
+                keycapDown = false
+            }
+        }
+    }
+
+    private func sentencePart(_ value: String, at index: Int) -> String {
+        let parts = value.components(separatedBy: "{esc}")
+        return parts.indices.contains(index) ? parts[index].trimmingCharacters(in: .whitespaces) : ""
+    }
+
+    private func stableCaption(part: Int, alignment: Alignment) -> some View {
+        // Reserve the widest localized state on each side of the keycap.
+        // Hidden sizing copies never participate in accessibility or animation.
+        ZStack(alignment: alignment) {
+            ForEach(variants.indices, id: \.self) { index in
+                caption(sentencePart(variants[index], at: part))
+                    .hidden()
+                    .accessibilityHidden(true)
+            }
+        }
+        .overlay(alignment: alignment) {
+            counterCaption(sentencePart(text, at: part))
+        }
+    }
+
+    @ViewBuilder
+    private func counterCaption(_ value: String) -> some View {
+        if let range = value.range(of: String(remaining)) {
+            HStack(spacing: 0) {
+                Text(String(value[..<range.lowerBound]))
+                Text(String(remaining))
+                    .contentTransition(reduceMotion ? .identity : .numericText(countsDown: true))
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: remaining)
+                Text(String(value[range.upperBound...]))
+            }
+            .font(.system(size: 12, weight: .medium))
+            .monospacedDigit()
+            .foregroundStyle(.white.opacity(0.6))
+        } else {
+            caption(value)
+        }
+    }
+
+    private func caption(_ value: String) -> some View {
+        Text(value)
+            .font(.system(size: 12, weight: .medium))
+            .monospacedDigit()
+            .foregroundStyle(.white.opacity(0.6))
+
+    }
+}
+
+
+/// Reuses the Island's surface, provider marks, status pulse and elapsed clock.
+private struct AwayAgentCards: View {
+    let cards: [AwayAgentActivity.Card]
     let language: AppLanguage
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var resting: Bool { sessions.isEmpty && finishedProvider == nil }
-    private var width: CGFloat {
-        min(geometry.screen.width - 24, max(geometry.cameraWidth + 32, resting ? 164 : 366))
-    }
-    private var bodyHeight: CGFloat {
-        resting ? 36 : CGFloat(max(1, min(3, sessions.count))) * 62
-            + CGFloat(max(0, min(3, sessions.count) - 1)) * 7 + (sessions.count > 3 ? 18 : 0)
-    }
-    private var height: CGFloat { geometry.safeContentTop + bodyHeight + 12 }
 
     var body: some View {
-        VStack(spacing: 7) {
-            if !sessions.isEmpty {
-                ForEach(Array(sessions.prefix(3))) { session in
-                    card(provider: session.provider, finished: false,
-                         duration: max(0, now.timeIntervalSince(session.started)))
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: min(2, max(1, cards.count))), spacing: 8) {
+                ForEach(cards) { card in
+                    NotchAgentCardChrome {
+                        VStack(alignment: .leading, spacing: 6) {
+                            NotchAgentCardHeader(title: card.provider.displayName, symbol: card.provider.symbol,
+                                                 tint: card.provider.tint, provider: card.provider) {
+                                if card.isWorking {
+                                    NotchAgentPulse(tint: card.provider.tint, size: 4)
+                                } else {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 11)).foregroundStyle(.green)
+                                }
+                            }
+                            HStack {
+                                Text(card.isWorking ? AwayModeStrings.controls(language).working
+                                     : FeatureStrings.notchAgents(language).finished(card.provider.displayName))
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(AgentFormat.clock(card.elapsed(at: context.date))).monospacedDigit()
+                            }
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.65))
+                        }
+                    }
+                    .frame(height: 64)
                 }
-                if sessions.count > 3 {
-                    Text("+\(sessions.count - 3)")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-            } else if let finishedProvider {
-                card(provider: finishedProvider, finished: true, duration: finishedDuration)
-            } else {
-                AwayOrbitView().frame(width: 52, height: 36)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, geometry.safeContentTop)
-        .padding(.bottom, 12)
-        .frame(width: width, height: height)
-        .background(Color(white: 0.025), in: NotchShape.island(height: height, geometry: geometry))
         .environment(\.colorScheme, .dark)
-        .environment(\.notchGlassSurface, true)
-        .padding(.top, geometry.floatingDrop)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: height)
-        .allowsHitTesting(false)
-    }
-
-    private func card(provider: AgentProvider, finished: Bool, duration: TimeInterval) -> some View {
-        HStack(spacing: 12) {
-            if finished {
-                Image(systemName: "checkmark.circle")
-                    .font(.system(size: 22, weight: .light)).foregroundStyle(.green)
-                    .frame(width: 26)
-            } else {
-                NotchAgentMark(provider: provider, size: 22, tint: provider.tint).frame(width: 26)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(finished
-                     ? String(format: FeatureStrings.notchAgents(language).finishedFormat, provider.displayName)
-                     : provider.displayName)
-                    .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.88))
-                if !finished {
-                    Text(AwayModeStrings.controls(language).working)
-                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
-                }
-            }
-            .lineLimit(1)
-            Spacer(minLength: 4)
-            Text(AgentFormat.duration(duration, locale: language.formattingLocale()))
-                .font(.system(size: 11, design: .monospaced)).foregroundStyle(.white.opacity(0.62))
-                .fixedSize()
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 62)
-        .modifier(NotchControlSurface(cornerRadius: 13, interactive: false))
-    }
-}
-
-/// An original, understated orbit mark, independent of upstream's app artwork.
-private struct AwayOrbitView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 0.2, paused: reduceMotion)) { timeline in
-            let phase = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate / 9
-            Canvas { context, size in
-                let center = CGPoint(x: size.width / 2, y: size.height / 2)
-                let planet = CGRect(x: center.x - 8, y: center.y - 8, width: 16, height: 16)
-                context.fill(Path(ellipseIn: planet), with: .linearGradient(
-                    Gradient(colors: [.white.opacity(0.26), .white.opacity(0.04)]),
-                    startPoint: CGPoint(x: planet.minX, y: planet.minY),
-                    endPoint: CGPoint(x: planet.maxX, y: planet.maxY)))
-                context.translateBy(x: center.x, y: center.y)
-                context.rotate(by: .degrees(-24))
-                context.stroke(Path(ellipseIn: CGRect(x: -23, y: -7, width: 46, height: 14)),
-                               with: .color(.white.opacity(0.22)), lineWidth: 1)
-                let dot = CGRect(x: cos(phase) * 23 - 1, y: sin(phase) * 7 - 1, width: 2, height: 2)
-                context.fill(Path(ellipseIn: dot), with: .color(.white.opacity(0.6)))
-            }
-        }
-        .accessibilityHidden(true)
     }
 }

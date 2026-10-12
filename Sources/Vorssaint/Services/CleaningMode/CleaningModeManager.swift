@@ -28,9 +28,12 @@ final class CleaningModeManager: ObservableObject {
     enum Mode { case cleaning, away }
     @Published private(set) var mode: Mode = .cleaning
     @Published private(set) var isAuthenticating = false
+    @Published private(set) var isAwayEscapePressed = false
     @Published private(set) var shortcutRegistrationFailed = false
     private let awayHotkey = QuickToolHotkey(id: 81)
     private var awayUnlock = AwayUnlockGesture()
+    @Published private(set) var awayAgentActivity = AwayAgentActivity()
+    private var awayAgentSubscriptions = Set<AnyCancellable>()
     private var authenticationContext: LAContext?
     private var authenticationID: UUID?
     private var awakeAssertion: IOPMAssertionID = 0
@@ -150,6 +153,7 @@ final class CleaningModeManager: ObservableObject {
             return
         }
         mode = requestedMode
+        isAwayEscapePressed = false
         awayUnlock.reset()
         // Debounce must not filter while the lock is up: its tap can run ahead
         // of ours (head-insert order depends on creation order) and would eat
@@ -169,6 +173,7 @@ final class CleaningModeManager: ObservableObject {
         unlock.reset()
         unlockProgress = 0
         isActive = true
+        if mode == .away { observeAwayAgents() }
         installScreenObserver()
         showOverlays()
         if isActive, mode == .away {
@@ -181,6 +186,13 @@ final class CleaningModeManager: ObservableObject {
             // Fail open if permission, the tap or feature availability disappears.
             watchdog = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
                 guard let self, self.isActive, self.mode == .away else { return }
+                self.refreshAwayAgents()
+                if !self.isAuthenticating {
+                    self.awayUnlock.expire(at: ProcessInfo.processInfo.systemUptime)
+                    if self.unlockProgress != self.awayUnlock.progress {
+                        self.unlockProgress = self.awayUnlock.progress
+                    }
+                }
                 guard AppFeature.awayMode.isAvailable, AXIsProcessTrusted(),
                       self.isAuthenticating || self.tap.map({ CGEvent.tapIsEnabled(tap: $0) }) == true else {
                     self.deactivateForSystemTeardown()
@@ -243,10 +255,13 @@ final class CleaningModeManager: ObservableObject {
 
     private func finishDeactivation(restoreSuspendedFeatures: Bool) {
         guard isActive else { return }
+        awayAgentSubscriptions.removeAll()
+        awayAgentActivity = AwayAgentActivity()
         authenticationID = nil
         authenticationContext?.invalidate()
         authenticationContext = nil
         isAuthenticating = false
+        isAwayEscapePressed = false
         awayUnlock.reset()
         watchdog?.invalidate()
         watchdog = nil
@@ -348,6 +363,11 @@ final class CleaningModeManager: ObservableObject {
         }
 
         if mode == .away {
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            if keyCode == Self.escapeKeyCode {
+                if type == .keyDown { isAwayEscapePressed = true }
+                else if type == .keyUp { isAwayEscapePressed = false }
+            }
             if type == .keyDown || type == .flagsChanged {
                 awayUnlock.keyDown(code: event.getIntegerValueField(.keyboardEventKeycode),
                                    time: ProcessInfo.processInfo.systemUptime,
@@ -463,9 +483,8 @@ final class CleaningModeManager: ObservableObject {
             // Build replacements before removing old panels: hot-plugging must
             // never intentionally uncover the desktop during the transition.
             let old = overlays
-            let geometry = NotchService.shared.awayModeGeometry(in: NSScreen.screens)
             overlays = frames.map { frame in
-                makeOverlay(frame: frame, awayGeometry: geometry?.screen == frame ? geometry : nil)
+                makeOverlay(frame: frame)
             }
             old.forEach { $0.orderOut(nil) }
             return
@@ -485,7 +504,7 @@ final class CleaningModeManager: ObservableObject {
         reusable.forEach { $0.orderOut(nil) }
     }
 
-    private func makeOverlay(frame: NSRect, awayGeometry: NotchGeometry? = nil) -> NSPanel {
+    private func makeOverlay(frame: NSRect) -> NSPanel {
         let panel = GuardOverlayPanel(contentRect: frame,
                                  styleMask: [.borderless, .nonactivatingPanel],
                                  backing: .buffered, defer: false)
@@ -497,20 +516,24 @@ final class CleaningModeManager: ObservableObject {
         // for its own lock-style windows.
         panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
         panel.level = isAuthenticating ? .floating : panel.level
-        panel.backgroundColor = mode == .away ? .black : .clear
-        panel.isOpaque = mode == .away
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
         panel.hasShadow = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         // acceptsFirstMouse so the Unlock button fires on the very first click even
         // though the panel never becomes key or activates the app — otherwise that
         // click would just be absorbed as the window-activating click.
         let root = mode == .away
-            ? AnyView(AwayOverlayView(geometry: awayGeometry))
+            ? AnyView(AwayOverlayView(displaySize: frame.size))
             : AnyView(CleaningOverlayView())
         let host = OverlayHostingView(rootView: root)
+        if mode == .away { host.sizingOptions = [] }
         host.frame = NSRect(origin: .zero, size: frame.size)
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
+        // Hosting intrinsic sizing must not move or shrink a display overlay.
+        panel.setFrame(frame, display: false)
+        host.frame = NSRect(origin: .zero, size: frame.size)
         panel.orderFrontRegardless()
         return panel
     }
@@ -547,6 +570,7 @@ final class CleaningModeManager: ObservableObject {
 
     private final class GuardOverlayPanel: OverlayPanel {
         var acceptsKeyboard = false
+        override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
         override var canBecomeKey: Bool { acceptsKeyboard }
         override var canBecomeMain: Bool { false }
     }
@@ -563,6 +587,27 @@ final class CleaningModeManager: ObservableObject {
         cursorHidden = false
     }
 
+    private func observeAwayAgents() {
+        awayAgentActivity = AwayAgentActivity()
+        AgentUsageService.shared.$snapshot.sink { [weak self] snapshot in
+            self?.refreshAwayAgents(snapshot: snapshot)
+        }.store(in: &awayAgentSubscriptions)
+        AgentUsageService.shared.completedTurns.sink { [weak self] event in
+            guard let self, self.isActive, self.mode == .away else { return }
+            var next = self.awayAgentActivity
+            next.receive(event)
+            if next != self.awayAgentActivity { self.awayAgentActivity = next }
+        }.store(in: &awayAgentSubscriptions)
+    }
+
+    private func refreshAwayAgents(snapshot: AgentUsageSnapshot? = nil) {
+        guard isActive, mode == .away else { return }
+        let enabled = NotchAgentSupport.isEnabled() ? Set(NotchAgentSupport.providers()) : []
+        var next = awayAgentActivity
+        next.update((snapshot ?? AgentUsageService.shared.snapshot).live, enabled: enabled, now: Date())
+        if next != awayAgentActivity { awayAgentActivity = next }
+    }
+
     private func authenticateAway() {
         guard isActive, mode == .away, !isAuthenticating else { return }
         let context = LAContext()
@@ -570,9 +615,10 @@ final class CleaningModeManager: ObservableObject {
         authenticationID = id
         authenticationContext = context
         isAuthenticating = true
+        isAwayEscapePressed = false
         unlockProgress = 0
         // The system-owned password fallback needs real keyboard events. Keep
-        // opaque panels up, but lower them beneath macOS authentication UI.
+        // backdrop panels up, but lower them beneath macOS authentication UI.
         removeTap()
         showCursor()
         overlays.forEach {

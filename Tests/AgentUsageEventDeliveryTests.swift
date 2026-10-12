@@ -26,6 +26,7 @@ enum AgentUsageEventDeliveryTests {
         var readerSession = 1
         var providers: [AgentProvider] = [.claude, .codex, .copilot]
         let events = Events()
+        let completedTurns = Events()
     }
 
     static func run(_ suite: TestSuite) {
@@ -55,6 +56,7 @@ enum AgentUsageEventDeliveryTests {
         // Stop/restart can finish on main before any queued event is delivered.
         host.session += 1
         drain()
+        suite.expect(host.completedTurns.values.isEmpty, "stale sessions cannot deliver Away completions")
         suite.expect(host.events.values.isEmpty,
                      "events queued by a previous agent reading cannot leak into a restarted session")
 
@@ -88,5 +90,22 @@ enum AgentUsageEventDeliveryTests {
         host.report(events[3])
         drain()
         suite.expect(host.events.values.isEmpty, "duration and disabled-alert preferences still filter current events")
+        let away = Host()
+        NotchAgentSupport.minimum = nil
+        away.report(finished)
+        drain()
+        suite.expect(away.completedTurns.values == [finished] && away.events.values.isEmpty,
+                     "Away receives real completions even when Island finish notifications are disabled")
+        away.completedTurns.values.removeAll()
+        away.providers = [.codex]
+        away.report(finished)
+        drain()
+        suite.expect(away.completedTurns.values.isEmpty, "Away completions respect disabled providers")
+        away.providers = [.claude]
+        NotchAgentSupport.minimum = 60
+        away.report(finished)
+        drain()
+        suite.expect(away.completedTurns.values == [finished] && away.events.values.isEmpty,
+                     "short completed turns update Away cards without bypassing alert thresholds")
     }
 }
