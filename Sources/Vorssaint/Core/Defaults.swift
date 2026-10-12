@@ -298,6 +298,11 @@ enum DefaultsKey {
     static let keyboardDebounceWindowMs = "keyboardDebounceWindowMs"
     static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
     static let panelUtilityCleaning = "panelUtilityCleaning"
+    static let awayModeShortcut = "awayModeShortcut"
+    static let awayModeShortcutEnabled = "awayModeShortcutEnabled"
+    static let panelUtilityAwayMode = "panelUtilityAwayMode"
+    static let awayModeShowAgents = "awayModeShowAgents"
+    static let awayModeKeepAwake = "awayModeKeepAwake"
     static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
@@ -1522,6 +1527,11 @@ enum Defaults {
         DefaultsKey.keyboardDebounceKeyWindows: "",
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.cleaningModeKeepScreenVisible: false,
+        DefaultsKey.awayModeShowAgents: true,
+        DefaultsKey.awayModeShortcut: GlobalShortcut.awayModeDefault.storageValue,
+        DefaultsKey.awayModeShortcutEnabled: false,
+        DefaultsKey.panelUtilityAwayMode: true,
+        DefaultsKey.awayModeKeepAwake: true,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.uninstallerCommandBarEnabled: false,

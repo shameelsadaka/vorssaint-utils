@@ -555,7 +555,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
-         uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
+         uninstaller, cleanURL, cleaning, awayMode, screenOCR, colorPicker, cameraPreview, scratchpad,
          commandBar, screenRecorder, portManager
 
     var id: String { rawValue }
@@ -573,6 +573,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .windowLayout: return .windowLayout
         case .uninstaller: return .uninstaller
         case .cleanURL: return .urlCleaner
+        case .awayMode: return .awayMode
         case .cleaning: return .cleaningMode
         case .screenOCR: return .screenOCR
         case .colorPicker: return .colorPicker
@@ -600,6 +601,7 @@ struct UtilitiesSection: View {
     @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
     @State private var showPortManagerPanel = false
+    @AppStorage(DefaultsKey.panelUtilityAwayMode) private var showAwayMode = true
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -772,6 +774,7 @@ struct UtilitiesSection: View {
         case .uninstaller: return showUninstallerAction
         case .cleaner: return showCleanerAction
         case .cleanURL: return showCleanURL
+        case .awayMode: return showAwayMode
         case .cleaning: return showCleaning
         case .screenOCR: return showScreenOCR
         case .colorPicker: return showColorPicker
@@ -871,6 +874,20 @@ struct UtilitiesSection: View {
                                 visibility: $showCleanURL,
                                 action: {
                                     showURLCleaner = true
+                                })
+        case .awayMode:
+            UtilityActionButton(title: AwayModeStrings.get(l10n.language).title,
+                                caption: AwayModeStrings.get(l10n.language).description,
+                                systemImage: AppFeature.awayMode.symbolName,
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showAwayMode,
+                                needsAttention: !permissions.accessibility,
+                                permissionButtonTitle: l10n.s.permissionRequest,
+                                permissionAction: permissions.accessibility ? nil : grantAccessibility,
+                                action: {
+                                    (NSApp.delegate as? AppDelegate)?.closePopover()
+                                    CleaningModeManager.shared.activate(mode: .away)
                                 })
         case .cleaning:
             UtilityActionButton(title: l10n.s.cleaningMenuItem,
@@ -1095,6 +1112,7 @@ struct UtilitiesSection: View {
         showCleanerAction = true
         showCleanURL = true
         showCleaning = true
+        showAwayMode = true
         showScreenOCR = true
         showScreenshot = true
         showColorPicker = true

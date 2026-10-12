@@ -1773,6 +1773,7 @@ final class NotchService: ObservableObject {
             case .timer: select(.timer)
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
+            case .awayMode: perform { CleaningModeManager.shared.activate(mode: .away) }
             case .scratchpad: openScratchpad()
             case .volume, .brightness, .keyboardLight: select(.controls)
             }
@@ -3211,6 +3212,13 @@ final class NotchService: ObservableObject {
 
     private var displayPreference: NotchDisplay {
         NotchDisplay(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchDisplay) ?? "") ?? .automatic
+    }
+
+    /// Away Mode borrows the same display choice and fitted silhouette, but
+    /// draws one read-only surface over its black panels, even for “all displays”.
+    func awayModeGeometry(in screens: [NSScreen]) -> NotchGeometry? {
+        guard !screens.isEmpty else { return nil }
+        return baseGeometry(for: screens[screenIndex(in: screens) ?? 0])
     }
 
     private func screenIndex(in screens: [NSScreen]) -> Int? {

@@ -282,6 +282,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        CleaningModeManager.shared.deactivateForSystemTeardown()
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
@@ -1497,6 +1498,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             menu.addItem(durationsItem)
         }
 
+        if AppFeature.awayMode.isAvailable, UserDefaults.standard.bool(forKey: DefaultsKey.panelUtilityAwayMode) {
+            let awayItem = NSMenuItem(title: AwayModeStrings.get(L10n.shared.language).title,
+                                      action: #selector(menuAwayMode), keyEquivalent: "")
+            awayItem.target = self
+            menu.addItem(awayItem)
+        }
+
         if AppFeature.cleaningMode.isAvailable {
             let cleaningItem = NSMenuItem(title: strings.cleaningMenuItem,
                                           action: #selector(menuCleaningMode), keyEquivalent: "")
@@ -1550,6 +1558,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     @objc private func menuToggleAwake() {
         KeepAwakeManager.shared.toggle()
+    }
+
+    @objc private func menuAwayMode() {
+        CleaningModeManager.shared.activate(mode: .away)
     }
 
     @objc private func menuCleaningMode() {

@@ -99,6 +99,7 @@ struct MetricsTests {
                 NotchSettingsTabRowTests.run(suite)
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
+            ("away-mode", { AwayModeTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)

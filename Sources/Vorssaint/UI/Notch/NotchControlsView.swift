@@ -149,6 +149,10 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.select(.mixer) }
         case .commandBar:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.perform { CommandBarService.shared.show() } }
+        case .awayMode:
+            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) {
+                service.perform { CleaningModeManager.shared.activate(mode: .away) }
+            }
         case .scratchpad:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), action: service.openScratchpad)
         case .timer: NotchTimerTile(service: service)
@@ -172,6 +176,7 @@ extension NotchControlItem {
         case .panel: return FeatureStrings.notch(l10n.language).panel
         case .mixer: return l10n.s.mixerSection
         case .commandBar: return FeatureStrings.commandBar(l10n.language).pageTitle
+        case .awayMode: return AwayModeStrings.get(l10n.language).title
         case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
         case .music: return NotchModule.music.title(l10n.language)
         case .timer: return NotchModule.timer.title(l10n.language)

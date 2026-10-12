@@ -404,6 +404,7 @@ enum SettingsDirectory {
                                          [FeatureStrings.wallpaper(language).pageTitle]),
                                         (.scratchpad, [FeatureStrings.scratchpad(language).pageTitle]),
                                         (.cleaningMode, [s.cleaningMenuItem, s.cleaningKeepScreenVisibleToggle]),
+                                        (.awayMode, [AwayModeStrings.get(language).title, AwayModeStrings.get(language).description]),
                                        ]),
                 SettingsDirectoryItem(page: .screenshot,
                                        title: FeatureStrings.screenshot(language).screenCaptureTitle,

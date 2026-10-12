@@ -454,6 +454,14 @@ enum CommandBarCatalog {
                 trouble: accessibilityTrouble(),
                 run: { _ in afterBeat { PastePlainService.shared.performPastePlain() } }))
         }
+        if AppFeature.awayMode.isAvailable {
+            let away = AwayModeStrings.get(L10n.shared.language)
+            entries.append(CommandBarEntry(
+                id: "action.awayMode", title: away.title,
+                subtitle: area(.awayMode, under: away.description),
+                icon: .symbol("moon.stars"), shortcut: roleShortcut(.awayMode), trouble: accessibilityTrouble(),
+                run: { _ in afterBeat(0.1) { CleaningModeManager.shared.activate(mode: .away) } }))
+        }
         if AppFeature.cleaningMode.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.cleaningMode",

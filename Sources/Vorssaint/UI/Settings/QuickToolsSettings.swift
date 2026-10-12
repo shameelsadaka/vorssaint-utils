@@ -265,6 +265,11 @@ struct QuickToolsSettings: View {
                 .settingsFormSectionAnchor(.scratchpad)
             }
 
+            if AppFeature.awayMode.isAvailable {
+                AwayModeSettings()
+                    .settingsFormSectionAnchor(.awayMode)
+            }
+
             if AppFeature.cleaningMode.isAvailable {
                 Section {
                     Button {
