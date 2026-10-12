@@ -3503,13 +3503,6 @@ final class NotchService: ObservableObject {
          screens.firstIndex(where: { $0 === NSScreen.withMenuBar }) ?? 0)
     }
 
-    /// Away Mode borrows the same display choice and fitted silhouette, but
-    /// draws one read-only surface over its black panels, even for “all displays”.
-    func awayModeGeometry(in screens: [NSScreen]) -> NotchGeometry? {
-        guard !screens.isEmpty else { return nil }
-        return baseGeometry(for: screens[screenIndex(in: screens) ?? 0])
-    }
-
     private func screenIndex(in screens: [NSScreen]) -> Int? {
         let preference = displayPreference
         var pointer: Int?

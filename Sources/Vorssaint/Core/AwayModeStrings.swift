@@ -223,3 +223,52 @@ extension AwayModeStrings {
         }
     }
 }
+
+
+extension AwayModeStrings {
+    static func appearance(_ language: AppLanguage) -> (overlay: String, opacity: String, blur: String, hint: String) {
+        switch language {
+        case .enUS: return ("Show screen overlay", "Overlay opacity", "Blur intensity", "Hide the overlay and logo to keep the desktop visible. Input stays guarded.")
+        case .ptBR: return ("Mostrar sobreposição", "Opacidade da sobreposição", "Intensidade do desfoque", "Oculte a sobreposição e o logotipo para ver a mesa. A entrada continua bloqueada.")
+        case .tr: return ("Ekran katmanını göster", "Katman opaklığı", "Bulanıklık yoğunluğu", "Masaüstünü görmek için katmanı ve logoyu gizleyin. Giriş engellenmeye devam eder.")
+        case .ru: return ("Показывать наложение", "Непрозрачность наложения", "Интенсивность размытия", "Скройте наложение и логотип, чтобы видеть рабочий стол. Ввод останется заблокированным.")
+        case .es: return ("Mostrar superposición", "Opacidad de la superposición", "Intensidad del desenfoque", "Oculta la superposición y el logotipo para ver el escritorio. La entrada sigue bloqueada.")
+        case .sk: return ("Zobraziť prekrytie obrazovky", "Nepriehľadnosť prekrytia", "Intenzita rozmazania", "Skryte prekrytie a logo, aby bola plocha viditeľná. Vstup zostane blokovaný.")
+        case .de: return ("Bildschirmüberlagerung anzeigen", "Deckkraft der Überlagerung", "Unschärfeintensität", "Überlagerung und Logo ausblenden, um den Schreibtisch zu sehen. Eingaben bleiben gesperrt.")
+        case .fr: return ("Afficher la superposition", "Opacité de la superposition", "Intensité du flou", "Masquez la superposition et le logo pour voir le bureau. Les entrées restent bloquées.")
+        case .it: return ("Mostra sovrapposizione", "Opacità della sovrapposizione", "Intensità della sfocatura", "Nascondi la sovrapposizione e il logo per vedere la scrivania. Gli input restano bloccati.")
+        case .ja: return ("画面オーバーレイを表示", "オーバーレイの不透明度", "ぼかしの強さ", "オーバーレイとロゴを非表示にするとデスクトップが見えます。入力は引き続きブロックされます。")
+        case .ko: return ("화면 오버레이 표시", "오버레이 불투명도", "흐림 강도", "오버레이와 로고를 숨기면 데스크탑이 보입니다. 입력은 계속 차단됩니다.")
+        case .uk: return ("Показувати накладання", "Непрозорість накладання", "Інтенсивність розмиття", "Приховайте накладання та логотип, щоб бачити робочий стіл. Введення залишиться заблокованим.")
+        case .zhHans: return ("显示屏幕遮罩", "遮罩不透明度", "模糊强度", "隐藏遮罩和标志以显示桌面。输入仍会被阻止。")
+        case .zhTW: return ("顯示螢幕遮罩", "遮罩不透明度", "模糊強度", "隱藏遮罩和標誌以顯示桌面。輸入仍會被阻擋。")
+        case .zhHK: return ("顯示螢幕遮罩", "遮罩不透明度", "模糊強度", "隱藏遮罩和標誌以顯示桌面。輸入仍會被阻擋。")
+        }
+    }
+}
+
+
+extension AwayModeStrings {
+    /// The {esc} placeholder is rendered as the animated keycap in sentence order.
+    static func escapeCountdown(_ language: AppLanguage, remaining: Int) -> String {
+        let count = max(1, min(3, remaining))
+        switch language {
+        case .enUS:
+            return "Ready to return? Tap {esc} \(count) \(count == 1 ? "time" : "times")."
+        case .ptBR: return "Pressione {esc} mais \(count) vez(es) para desbloquear."
+        case .tr: return "Kilidi açmak için {esc} tuşuna \(count) kez daha basın."
+        case .ru: return "Нажмите {esc} ещё \(count) раз для разблокировки."
+        case .es: return "Pulsa {esc} \(count) veces más para desbloquear."
+        case .sk: return "Na odomknutie stlačte {esc} ešte \(count)×."
+        case .de: return "Zum Entsperren {esc} noch \(count)× drücken."
+        case .fr: return "Appuyez encore \(count) fois sur {esc} pour déverrouiller."
+        case .it: return "Premi {esc} ancora \(count) volte per sbloccare."
+        case .ja: return "{esc} をあと\(count)回押してロック解除。"
+        case .ko: return "{esc} 키를 \(count)번 더 눌러 잠금 해제."
+        case .uk: return "Натисніть {esc} ще \(count) разів для розблокування."
+        case .zhHans: return "再按 {esc} \(count)次解锁。"
+        case .zhTW: return "再按 {esc} \(count)次解鎖。"
+        case .zhHK: return "再按 {esc} \(count)次解鎖。"
+        }
+    }
+}

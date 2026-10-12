@@ -24,12 +24,49 @@ enum AwayModeTests {
         gesture.reset()
         suite.expect(gesture.progress == 0, "cancelled sessions forget their unlock progress")
 
+        gesture.keyDown(code: 53, time: 10, isRepeat: false)
+        gesture.keyDown(code: 53, time: 11, isRepeat: true)
+        gesture.expire(at: 12)
+        suite.expect(gesture.progress == 1, "countdown remains valid at the two-second boundary")
+        gesture.expire(at: 12.1)
+        suite.expect(gesture.progress == 0, "expired countdown resets without another key; repeats do not extend it")
+        for time in [20.0, 20.1, 20.2] { gesture.keyDown(code: 53, time: time, isRepeat: false) }
+        gesture.expire(at: 23)
+        suite.expect(gesture.keyUp(code: 53), "expiry does not interrupt waiting for the final key release")
+
         let now = Date(timeIntervalSince1970: 1000)
         func session(_ id: String, provider: AgentProvider = .claude, started: Double = 800, activity: Double = 990) -> AgentLiveSession {
             AgentLiveSession(id: id, provider: provider, started: Date(timeIntervalSince1970: started),
                              lastActivity: Date(timeIntervalSince1970: activity), model: "model", project: "/private/project",
                              tokens: AgentTokens(), cost: 0)
         }
+        var activity = AwayAgentActivity()
+        activity.update([], enabled: [.claude, .codex], now: now)
+        suite.expect(activity.cards.isEmpty, "no activity means no Away cards")
+        activity.update([session("one"), session("two", started: 900), session("codex", provider: .codex)],
+                        enabled: [.claude, .codex], now: now)
+        suite.expect(activity.cards.count == 2 && activity.cards.allSatisfy(\.isWorking),
+                     "concurrent providers get separate cards; same-provider sessions are grouped")
+        suite.expect(activity.cards.first(where: { $0.provider == .claude })?.elapsed(at: now) == 200,
+                     "grouped working card uses the earliest active start")
+        activity.receive(.finished(provider: .claude, duration: 42, cost: 0, tokens: 0, project: "private"))
+        activity.update([session("one"), session("two", started: 900)], enabled: [.claude, .codex], now: now)
+        activity.update([], enabled: [.claude, .codex], now: now)
+        suite.expect(activity.cards.count == 1 && activity.cards[0].duration == 42 && !activity.cards[0].isWorking,
+                     "completion survives a delayed live snapshot and freezes the reported duration")
+        suite.expect(!activity.cards.contains(where: { $0.provider == .codex }),
+                     "a disappearing live session is not falsely marked completed")
+        activity.update([session("one", started: 999)], enabled: [.claude], now: now)
+        suite.expect(activity.cards.count == 1 && activity.cards[0].isWorking,
+                     "a new turn in the same session replaces the completed card")
+        activity.update([], enabled: [.claude], now: now)
+        suite.expect(activity.cards.isEmpty, "stale completion does not return when a new turn goes quiet")
+        activity.receive(.finished(provider: .codex, duration: 4, cost: 0, tokens: 0, project: ""))
+        suite.expect(activity.cards.isEmpty, "disabled providers cannot introduce completed cards")
+        activity.receive(.finished(provider: .claude, duration: 9, cost: 0, tokens: 0, project: ""))
+        activity.update([], enabled: [], now: now)
+        suite.expect(activity.cards.isEmpty, "disabling the shared integration clears retained cards")
+
         let live = AwayModeSupport.liveSessions([
             session("stale", activity: 399), session("disabled", provider: .codex),
             session("future", activity: 1020), session("b"), session("a"), session("old", started: 700)
@@ -50,7 +87,8 @@ enum AwayModeTests {
         suite.expect(GlobalShortcutRole.activeRoles(isOn: { _ in true }).contains(.awayMode)
                      && GlobalShortcutRole.featuresToSilenceWhileRecording.contains(.awayMode),
                      "Away shortcut participates in shared registration and recorder suspension")
-        for key in [DefaultsKey.awayModeShortcut, DefaultsKey.awayModeShortcutEnabled, DefaultsKey.panelUtilityAwayMode] {
+        for key in [DefaultsKey.awayModeShortcut, DefaultsKey.awayModeShortcutEnabled, DefaultsKey.panelUtilityAwayMode,
+                    DefaultsKey.awayModeOverlayEnabled, DefaultsKey.awayModeOverlayOpacity, DefaultsKey.awayModeBlurIntensity] {
             suite.expect(SettingsBackupSupport.exportKeys().contains(key), "shared Away control preference is backed up: \(key)")
         }
         let domain = "vorss.tests.away.\(UUID().uuidString)"
@@ -64,6 +102,17 @@ enum AwayModeTests {
         defaults.set("awayMode", forKey: DefaultsKey.notchHiddenControls)
         suite.expect(!NotchSupport.controls(in: defaults).contains(.awayMode), "existing Island visibility preference hides Away action")
         for language in AppLanguage.allCases {
+            for remaining in 1...3 {
+                let hint = AwayModeStrings.escapeCountdown(language, remaining: remaining)
+                suite.expect(hint.components(separatedBy: "{esc}").count == 2,
+                             "localized sentence contains exactly one inline keycap")
+                suite.expect(hint.contains(String(remaining)),
+                             "localized hint displays remaining Escape count")
+            }
+            let appearance = AwayModeStrings.appearance(language)
+            suite.expect(!appearance.overlay.isEmpty && !appearance.opacity.isEmpty
+                         && !appearance.blur.isEmpty && !appearance.hint.isEmpty,
+                         "Away appearance controls are localized in \(language.rawValue)")
             let strings = AwayModeStrings.get(language)
             suite.expect(!strings.title.isEmpty && !strings.authenticate.isEmpty && strings.unlockHint.contains("3")
                          && !AwayModeStrings.controls(language).working.isEmpty,
