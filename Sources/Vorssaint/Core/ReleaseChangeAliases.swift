@@ -116,6 +116,7 @@ enum ReleaseChangeAliases {
         case .colorPicker: return ["color picker"]
         case .screenOCR: return ["copy text from screen", "screen ocr"]
         case .cleaningMode: return ["cleaning mode"]
+        case .awayMode: return ["away mode"]
         case .mediaTools: return ["media tools", "image conversion", "video editor", "convert media",
             .exact("Media"), "image profiles", "video compression", "gif compression", "video and gif tools",
             "image converter"]

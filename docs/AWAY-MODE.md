@@ -58,7 +58,8 @@ All Away Mode preferences, including visibility and shortcuts, are included in s
 
 Away Mode has its own feature-catalog entry, permission description, settings
 anchor, search entry and Command Bar action. It is not installed by default.
-All fifteen existing app languages have feature strings.
+All fifteen existing app languages have feature strings. The post-update release
+digest recognizes Away Mode by name alongside upstream features.
 
 The implementation extends the existing Cleaning Mode lifecycle with a separate
 Away state, sharing its Accessibility gate and suspension of conflicting input
@@ -124,6 +125,22 @@ independent of alerts, stale snapshots, new turns and disabled integrations.
 A hidden native render of production Island card components with fixture data
 was visually checked for active Claude and completed Codex cards. Live agent
 work and authentication are still user-driven checks.
+
+Upstream rebase verification (2026-10-28): rebased onto `1468701`, incorporating
+225 upstream commits and preserving the approved menu placement, animation,
+appearance settings, activity cards and single Enter/Escape authentication.
+Developer build and selftest passed. The eight integration suites ran 92,926
+checks with one failure; all Away Mode, feature, settings, input, agent, keyboard
+and Command Bar checks passed. The updates suite passed another 1,159 checks,
+including Away Mode classification in the new release digest.
+
+The remaining failure is `NotchCompactTests.swift:339`, the history rail's
+realization limit. It also fails on a pristine `1468701` snapshot when running
+`updates` with `notch` (68,276 checks, one failure), while upstream's standalone
+`notch` suite passed twice (67,119 checks each). This test-order-dependent
+upstream assertion is unchanged. The Developer build also emits four Swift
+concurrency warnings in unchanged upstream thumbnail-loading code. No new live
+Touch ID or multi-monitor interaction was performed for this rebase.
 
 A real interaction test is still required before calling this release-ready:
 
