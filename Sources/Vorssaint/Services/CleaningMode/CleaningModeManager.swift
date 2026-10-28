@@ -29,6 +29,7 @@ final class CleaningModeManager: ObservableObject {
     @Published private(set) var mode: Mode = .cleaning
     @Published private(set) var isAuthenticating = false
     @Published private(set) var isAwayEscapePressed = false
+    @Published private(set) var isAwayEnterPressed = false
     @Published private(set) var shortcutRegistrationFailed = false
     private let awayHotkey = QuickToolHotkey(id: 81)
     private var awayUnlock = AwayUnlockGesture()
@@ -154,6 +155,7 @@ final class CleaningModeManager: ObservableObject {
         }
         mode = requestedMode
         isAwayEscapePressed = false
+        isAwayEnterPressed = false
         awayUnlock.reset()
         // Debounce must not filter while the lock is up: its tap can run ahead
         // of ours (head-insert order depends on creation order) and would eat
@@ -187,12 +189,6 @@ final class CleaningModeManager: ObservableObject {
             watchdog = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
                 guard let self, self.isActive, self.mode == .away else { return }
                 self.refreshAwayAgents()
-                if !self.isAuthenticating {
-                    self.awayUnlock.expire(at: ProcessInfo.processInfo.systemUptime)
-                    if self.unlockProgress != self.awayUnlock.progress {
-                        self.unlockProgress = self.awayUnlock.progress
-                    }
-                }
                 guard AppFeature.awayMode.isAvailable, AXIsProcessTrusted(),
                       self.isAuthenticating || self.tap.map({ CGEvent.tapIsEnabled(tap: $0) }) == true else {
                     self.deactivateForSystemTeardown()
@@ -262,6 +258,7 @@ final class CleaningModeManager: ObservableObject {
         authenticationContext = nil
         isAuthenticating = false
         isAwayEscapePressed = false
+        isAwayEnterPressed = false
         awayUnlock.reset()
         watchdog?.invalidate()
         watchdog = nil
@@ -368,11 +365,13 @@ final class CleaningModeManager: ObservableObject {
                 if type == .keyDown { isAwayEscapePressed = true }
                 else if type == .keyUp { isAwayEscapePressed = false }
             }
-            if type == .keyDown || type == .flagsChanged {
-                awayUnlock.keyDown(code: event.getIntegerValueField(.keyboardEventKeycode),
-                                   time: ProcessInfo.processInfo.systemUptime,
+            if keyCode == 36 || keyCode == 76 {
+                if type == .keyDown { isAwayEnterPressed = true }
+                else if type == .keyUp { isAwayEnterPressed = false }
+            }
+            if type == .keyDown {
+                awayUnlock.keyDown(code: keyCode,
                                    isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0)
-                unlockProgress = awayUnlock.progress
             } else if type == .keyUp,
                       awayUnlock.keyUp(code: event.getIntegerValueField(.keyboardEventKeycode)) {
                 DispatchQueue.main.async { [weak self] in self?.authenticateAway() }
@@ -616,6 +615,7 @@ final class CleaningModeManager: ObservableObject {
         authenticationContext = context
         isAuthenticating = true
         isAwayEscapePressed = false
+        isAwayEnterPressed = false
         unlockProgress = 0
         // The system-owned password fallback needs real keyboard events. Keep
         // backdrop panels up, but lower them beneath macOS authentication UI.

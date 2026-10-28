@@ -1305,7 +1305,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .panel: return "bubble.middle.top"
         case .mixer: return NotchModule.mixer.symbol
         case .commandBar: return "command"
-        case .awayMode: return "moon.stars"
+        case .awayMode: return AppFeature.awayMode.symbolName
         case .scratchpad: return "note.text"
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol

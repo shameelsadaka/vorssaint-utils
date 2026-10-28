@@ -555,7 +555,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
-         uninstaller, cleanURL, cleaning, awayMode, screenOCR, colorPicker, cameraPreview, scratchpad,
+         uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
          commandBar, screenRecorder, portManager
 
     var id: String { rawValue }
@@ -573,7 +573,6 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .windowLayout: return .windowLayout
         case .uninstaller: return .uninstaller
         case .cleanURL: return .urlCleaner
-        case .awayMode: return .awayMode
         case .cleaning: return .cleaningMode
         case .screenOCR: return .screenOCR
         case .colorPicker: return .colorPicker
@@ -601,7 +600,6 @@ struct UtilitiesSection: View {
     @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
     @State private var showPortManagerPanel = false
-    @AppStorage(DefaultsKey.panelUtilityAwayMode) private var showAwayMode = true
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -774,7 +772,6 @@ struct UtilitiesSection: View {
         case .uninstaller: return showUninstallerAction
         case .cleaner: return showCleanerAction
         case .cleanURL: return showCleanURL
-        case .awayMode: return showAwayMode
         case .cleaning: return showCleaning
         case .screenOCR: return showScreenOCR
         case .colorPicker: return showColorPicker
@@ -874,20 +871,6 @@ struct UtilitiesSection: View {
                                 visibility: $showCleanURL,
                                 action: {
                                     showURLCleaner = true
-                                })
-        case .awayMode:
-            UtilityActionButton(title: AwayModeStrings.get(l10n.language).title,
-                                caption: AwayModeStrings.get(l10n.language).description,
-                                systemImage: AppFeature.awayMode.symbolName,
-                                isEditing: editing,
-                                showsDragHandle: true,
-                                visibility: $showAwayMode,
-                                needsAttention: !permissions.accessibility,
-                                permissionButtonTitle: l10n.s.permissionRequest,
-                                permissionAction: permissions.accessibility ? nil : grantAccessibility,
-                                action: {
-                                    (NSApp.delegate as? AppDelegate)?.closePopover()
-                                    CleaningModeManager.shared.activate(mode: .away)
                                 })
         case .cleaning:
             UtilityActionButton(title: l10n.s.cleaningMenuItem,
@@ -1112,7 +1095,6 @@ struct UtilitiesSection: View {
         showCleanerAction = true
         showCleanURL = true
         showCleaning = true
-        showAwayMode = true
         showScreenOCR = true
         showScreenshot = true
         showColorPicker = true
@@ -2709,6 +2691,8 @@ struct KeepAwakeCard: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var features = FeatureRuntime.shared
+    @AppStorage(DefaultsKey.panelUtilityAwayMode) private var showAwayMode = true
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration: Int = 0
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
@@ -2745,83 +2729,99 @@ struct KeepAwakeCard: View {
         // first row is just the live status and the on/off switch.
         PanelSection(.keepAwake, title: l10n.s.keepAwakeTitle, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    if awake.isActive, awake.endDate != nil {
-                        // Beside the extend chips a narrow panel has no room for the
-                        // status; the highlighted chip already shows the countdown
-                        // or the end time.
-                        ViewThatFits(in: .horizontal) {
-                            statusLine.fixedSize()
-                            Color.clear.frame(width: 0, height: 0)
-                        }
-                        Spacer(minLength: 4)
-                        HStack(spacing: 4) {
-                            ForEach([15, 30, 60], id: \.self) { minutes in
-                                Button("+" + DurationPicker.shortTitle(for: minutes, l10n.s, l10n.language)) {
-                                    awake.extend(minutes: minutes)
+                if AppFeature.keepAwake.isAvailable {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            if awake.isActive, awake.endDate != nil {
+                                // Beside the extend chips a narrow panel has no room for the
+                                // status; the highlighted chip already shows the countdown
+                                // or the end time.
+                                ViewThatFits(in: .horizontal) {
+                                    statusLine.fixedSize()
+                                    Color.clear.frame(width: 0, height: 0)
                                 }
-                                .buttonStyle(KeepAwakeChipStyle())
-                                .fixedSize()
+                                Spacer(minLength: 4)
+                                HStack(spacing: 4) {
+                                    ForEach([15, 30, 60], id: \.self) { minutes in
+                                        Button("+" + DurationPicker.shortTitle(for: minutes, l10n.s, l10n.language)) {
+                                            awake.extend(minutes: minutes)
+                                        }
+                                        .buttonStyle(KeepAwakeChipStyle())
+                                        .fixedSize()
+                                    }
+                                }
+                            } else {
+                                // Without the extend chips a long status, such as the
+                                // conditions of an automatic session, wraps instead.
+                                statusLine
+                                Spacer(minLength: 4)
+                            }
+                            Toggle(l10n.s.keepAwakeTitle, isOn: activeBinding)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
+                        }
+
+                        // One click starts (or switches) a session; clicking the
+                        // highlighted chip stops it. The switch reuses the last pick.
+                        // The menu bar panel is narrower than the island, so the row
+                        // folds into two rows of four when a single row would truncate.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 4) {
+                                ForEach(DurationPicker.choices, id: \.self, content: durationChip)
+                                untilChip
+                            }
+                            VStack(spacing: 4) {
+                                HStack(spacing: 4) {
+                                    ForEach(DurationPicker.choices.prefix(4), id: \.self, content: durationChip)
+                                }
+                                HStack(spacing: 4) {
+                                    ForEach(DurationPicker.choices.dropFirst(4), id: \.self, content: durationChip)
+                                    untilChip
+                                }
                             }
                         }
-                    } else {
-                        // Without the extend chips a long status, such as the
-                        // conditions of an automatic session, wraps instead.
-                        statusLine
-                        Spacer(minLength: 4)
-                    }
-                    Toggle(l10n.s.keepAwakeTitle, isOn: activeBinding)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                }
 
-                // One click starts (or switches) a session; clicking the
-                // highlighted chip stops it. The switch reuses the last pick.
-                // The menu bar panel is narrower than the island, so the row
-                // folds into two rows of four when a single row would truncate.
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 4) {
-                        ForEach(DurationPicker.choices, id: \.self, content: durationChip)
-                        untilChip
-                    }
-                    VStack(spacing: 4) {
-                        HStack(spacing: 4) {
-                            ForEach(DurationPicker.choices.prefix(4), id: \.self, content: durationChip)
+                        // Shown in both states so starting or stopping never changes
+                        // the card's height (the panel would jump). Battery protection
+                        // ends a session the moment it starts, so say why a chip
+                        // seems to do nothing.
+                        TimelineView(.periodic(from: .now, by: 30)) { _ in
+                            if let percent = awake.batteryProtectionPercent() {
+                                Label(batteryNote(percent), systemImage: "battery.25percent")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.orange)
+                            } else {
+                                Text(chipHint)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
-                        HStack(spacing: 4) {
-                            ForEach(DurationPicker.choices.dropFirst(4), id: \.self, content: durationChip)
-                            untilChip
-                        }
+
+                        optionsDisclosure
+
+                        Divider()
+
+                        optionRow(title: l10n.s.clamshellTitle,
+                                  caption: clamshellCaption,
+                                  isOn: $awake.clamshellPreferred,
+                                  disabled: awake.clamshellSetupInProgress,
+                                  captionIsError: awake.clamshellSetupFailed)
                     }
+                    .panelCard()
                 }
-
-                // Shown in both states so starting or stopping never changes
-                // the card's height (the panel would jump). Battery protection
-                // ends a session the moment it starts, so say why a chip
-                // seems to do nothing.
-                TimelineView(.periodic(from: .now, by: 30)) { _ in
-                    if let percent = awake.batteryProtectionPercent() {
-                        Label(batteryNote(percent), systemImage: "battery.25percent")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.orange)
-                    } else {
-                        Text(chipHint)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
+                if AppFeature.awayMode.isAvailable, showAwayMode {
+                    UtilityActionButton(title: AwayModeStrings.get(l10n.language).start,
+                                        caption: AwayModeStrings.get(l10n.language).description,
+                                        systemImage: AppFeature.awayMode.symbolName,
+                                        needsAttention: !permissions.accessibility,
+                                        permissionButtonTitle: l10n.s.permissionRequest,
+                                        permissionAction: permissions.accessibility ? nil : grantAccessibility) {
+                        (NSApp.delegate as? AppDelegate)?.closePopover()
+                        CleaningModeManager.shared.activate(mode: .away)
                     }
+                    .panelCard(padded: false)
                 }
-
-                optionsDisclosure
-
-                Divider()
-
-                optionRow(title: l10n.s.clamshellTitle,
-                          caption: clamshellCaption,
-                          isOn: $awake.clamshellPreferred,
-                          disabled: awake.clamshellSetupInProgress,
-                          captionIsError: awake.clamshellSetupFailed)
             }
-            .panelCard()
         }
         .onAppear {
             defaultDuration = Defaults.sanitizedDefaultDuration(defaultDuration)

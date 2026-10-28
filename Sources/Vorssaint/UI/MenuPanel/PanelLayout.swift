@@ -79,7 +79,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
     /// feature's return).
     var featureGate: [AppFeature] {
         switch self {
-        case .keepAwake: return [.keepAwake]
+        case .keepAwake: return [.keepAwake, .awayMode]
         case .brightness: return [.brightness]
         case .mixer: return [.mixer, .audioPriority]
         case .system: return [.monitorCPU, .monitorGPU, .monitorMemory, .connectedDevices]
@@ -89,7 +89,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .fanControl: return [.fanControl]
         case .utilities: return [.quickLauncher, .cleaner, .homebrew, .appUpdates, .mediaTools,
                                  .clipboardHistory,
-                                 .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, .awayMode, .screenOCR,
+                                 .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, .screenOCR,
                                  .colorPicker, .screenshot, .screenRecorder,
                                  .cameraPreview, .scratchpad, .commandBar, .portManager]
         case .controls: return [.scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .switcher,

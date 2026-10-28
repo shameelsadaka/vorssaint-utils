@@ -22,7 +22,7 @@ struct AwayModeStrings {
                 title: "Away Mode",
                 description: "Guard input and cover every display while your apps keep working.",
                 start: "Start Away Mode",
-                unlockHint: "Press Escape 3 times to authenticate",
+                unlockHint: "Press Enter or Esc to authenticate",
                 showAgents: "Show AI-agent activity",
                 agentsHint: "Uses the AI agents already enabled in Dynamic Island. Otherwise, a quiet orbit appears.",
                 keepAwake: "Keep Mac and displays awake",
@@ -34,7 +34,7 @@ struct AwayModeStrings {
                 title: "Modo ausente",
                 description: "Bloqueie a entrada e cubra todas as telas enquanto seus apps continuam trabalhando.",
                 start: "Iniciar modo ausente",
-                unlockHint: "Pressione Escape 3 vezes para autenticar",
+                unlockHint: "Pressione Enter ou Esc para autenticar",
                 showAgents: "Mostrar atividade dos agentes de IA",
                 agentsHint: "Usa os agentes de IA já ativados na Ilha Dinâmica. Caso contrário, mostra uma órbita discreta.",
                 keepAwake: "Manter o Mac e as telas acordados",
@@ -46,7 +46,7 @@ struct AwayModeStrings {
                 title: "Uzakta Modu",
                 description: "Uygulamalar çalışırken girişi engelleyin ve tüm ekranları kaplayın.",
                 start: "Uzakta Modunu başlat",
-                unlockHint: "Kimlik doğrulamak için Escape tuşuna 3 kez basın",
+                unlockHint: "Kimlik doğrulamak için Enter veya Esc tuşuna basın",
                 showAgents: "Yapay zekâ ajanı etkinliğini göster",
                 agentsHint: "Dinamik Ada’da etkinleştirilmiş ajanları kullanır. Aksi hâlde sakin bir yörünge gösterilir.",
                 keepAwake: "Mac’i ve ekranları uyanık tut",
@@ -58,7 +58,7 @@ struct AwayModeStrings {
                 title: "Режим отсутствия",
                 description: "Блокирует ввод и закрывает все экраны, пока приложения продолжают работать.",
                 start: "Включить режим отсутствия",
-                unlockHint: "Нажмите Escape 3 раза для аутентификации",
+                unlockHint: "Нажмите Enter или Esc для аутентификации",
                 showAgents: "Показывать активность ИИ-агентов",
                 agentsHint: "Использует агентов, уже включённых в Dynamic Island. Иначе отображается спокойная орбита.",
                 keepAwake: "Не давать Mac и экранам засыпать",
@@ -70,7 +70,7 @@ struct AwayModeStrings {
                 title: "Modo ausente",
                 description: "Bloquea la entrada y cubre todas las pantallas mientras tus apps siguen trabajando.",
                 start: "Iniciar modo ausente",
-                unlockHint: "Pulsa Escape 3 veces para autenticarte",
+                unlockHint: "Pulsa Enter o Esc para autenticarte",
                 showAgents: "Mostrar actividad de agentes de IA",
                 agentsHint: "Usa los agentes ya activados en Dynamic Island. En su ausencia, muestra una órbita discreta.",
                 keepAwake: "Mantener el Mac y las pantallas activos",
@@ -82,7 +82,7 @@ struct AwayModeStrings {
                 title: "Režim neprítomnosti",
                 description: "Zablokuje vstup a zakryje všetky displeje, kým aplikácie ďalej pracujú.",
                 start: "Spustiť režim neprítomnosti",
-                unlockHint: "Na overenie stlačte Escape 3-krát",
+                unlockHint: "Na overenie stlačte Enter alebo Esc",
                 showAgents: "Zobraziť aktivitu AI agentov",
                 agentsHint: "Používa agentov už zapnutých v Dynamic Island. Inak zobrazuje pokojnú obežnú dráhu.",
                 keepAwake: "Udržiavať Mac a displeje bdelé",
@@ -94,7 +94,7 @@ struct AwayModeStrings {
                 title: "Abwesenheitsmodus",
                 description: "Sperrt Eingaben und deckt alle Displays ab, während deine Apps weiterarbeiten.",
                 start: "Abwesenheitsmodus starten",
-                unlockHint: "Escape 3-mal drücken, um dich zu authentifizieren",
+                unlockHint: "Enter oder Esc drücken, um dich zu authentifizieren",
                 showAgents: "KI-Agentenaktivität anzeigen",
                 agentsHint: "Nutzt die bereits in Dynamic Island aktivierten Agenten. Sonst erscheint eine ruhige Umlaufbahn.",
                 keepAwake: "Mac und Displays wach halten",
@@ -106,7 +106,7 @@ struct AwayModeStrings {
                 title: "Mode absence",
                 description: "Bloque les entrées et couvre tous les écrans pendant que les apps continuent de travailler.",
                 start: "Activer le mode absence",
-                unlockHint: "Appuyez 3 fois sur Échap pour vous authentifier",
+                unlockHint: "Appuyez sur Enter ou Esc pour vous authentifier",
                 showAgents: "Afficher l’activité des agents IA",
                 agentsHint: "Utilise les agents déjà activés dans Dynamic Island. Sinon, affiche une orbite discrète.",
                 keepAwake: "Garder le Mac et les écrans éveillés",
@@ -118,7 +118,7 @@ struct AwayModeStrings {
                 title: "Modalità assente",
                 description: "Blocca gli input e copre tutti gli schermi mentre le app continuano a lavorare.",
                 start: "Avvia modalità assente",
-                unlockHint: "Premi Esc 3 volte per autenticarti",
+                unlockHint: "Premi Enter o Esc per autenticarti",
                 showAgents: "Mostra attività degli agenti IA",
                 agentsHint: "Usa gli agenti già attivati in Dynamic Island. Altrimenti mostra un’orbita discreta.",
                 keepAwake: "Mantieni attivi il Mac e gli schermi",
@@ -130,7 +130,7 @@ struct AwayModeStrings {
                 title: "離席モード",
                 description: "アプリの動作を続けながら、入力をブロックしてすべての画面を覆います。",
                 start: "離席モードを開始",
-                unlockHint: "認証するにはEscapeを3回押してください",
+                unlockHint: "認証するにはEnterまたはEscを押してください",
                 showAgents: "AIエージェントの動作を表示",
                 agentsHint: "Dynamic Islandで有効なエージェントを使用します。それ以外は静かな軌道を表示します。",
                 keepAwake: "Macと画面をスリープさせない",
@@ -142,7 +142,7 @@ struct AwayModeStrings {
                 title: "자리 비움 모드",
                 description: "앱이 계속 작업하는 동안 입력을 차단하고 모든 화면을 덮습니다.",
                 start: "자리 비움 모드 시작",
-                unlockHint: "인증하려면 Escape를 3번 누르세요",
+                unlockHint: "인증하려면 Enter 또는 Esc를 누르세요",
                 showAgents: "AI 에이전트 활동 표시",
                 agentsHint: "Dynamic Island에서 이미 활성화된 에이전트를 사용합니다. 그렇지 않으면 잔잔한 궤도를 표시합니다.",
                 keepAwake: "Mac과 화면을 깨어 있게 유지",
@@ -154,7 +154,7 @@ struct AwayModeStrings {
                 title: "Режим відсутності",
                 description: "Блокує введення й закриває всі екрани, поки програми продовжують працювати.",
                 start: "Увімкнути режим відсутності",
-                unlockHint: "Натисніть Escape 3 рази для автентифікації",
+                unlockHint: "Натисніть Enter або Esc для автентифікації",
                 showAgents: "Показувати активність ШІ-агентів",
                 agentsHint: "Використовує агентів, уже ввімкнених у Dynamic Island. Інакше показує спокійну орбіту.",
                 keepAwake: "Не давати Mac і екранам засинати",
@@ -166,7 +166,7 @@ struct AwayModeStrings {
                 title: "离开模式",
                 description: "阻止输入并覆盖所有显示器，同时让应用继续工作。",
                 start: "启动离开模式",
-                unlockHint: "按 Escape 3 次以验证身份",
+                unlockHint: "按 Enter 或 Esc 以验证身份",
                 showAgents: "显示 AI 智能体活动",
                 agentsHint: "使用灵动岛中已启用的智能体，否则显示安静的轨道动画。",
                 keepAwake: "保持 Mac 和显示器唤醒",
@@ -178,7 +178,7 @@ struct AwayModeStrings {
                 title: "離開模式",
                 description: "阻擋輸入並覆蓋所有顯示器，同時讓 App 繼續工作。",
                 start: "啟動離開模式",
-                unlockHint: "按 Escape 3 次以驗證身分",
+                unlockHint: "按 Enter 或 Esc 以驗證身分",
                 showAgents: "顯示 AI 代理程式活動",
                 agentsHint: "使用動態島中已啟用的代理程式，否則顯示安靜的軌道動畫。",
                 keepAwake: "保持 Mac 和顯示器喚醒",
@@ -190,7 +190,7 @@ struct AwayModeStrings {
                 title: "離開模式",
                 description: "阻擋輸入並覆蓋所有顯示器，同時讓 App 繼續工作。",
                 start: "啟動離開模式",
-                unlockHint: "按 Escape 3 次以驗證身分",
+                unlockHint: "按 Enter 或 Esc 以驗證身分",
                 showAgents: "顯示 AI 代理程式活動",
                 agentsHint: "使用動態島中已啟用的代理程式，否則顯示安靜的軌道動畫。",
                 keepAwake: "保持 Mac 和顯示器喚醒",
@@ -249,26 +249,24 @@ extension AwayModeStrings {
 
 
 extension AwayModeStrings {
-    /// The {esc} placeholder is rendered as the animated keycap in sentence order.
-    static func escapeCountdown(_ language: AppLanguage, remaining: Int) -> String {
-        let count = max(1, min(3, remaining))
+    /// Keycap placeholders keep the keys inside each localized sentence.
+    static func unlockPrompt(_ language: AppLanguage) -> String {
         switch language {
-        case .enUS:
-            return "Ready to return? Tap {esc} \(count) \(count == 1 ? "time" : "times")."
-        case .ptBR: return "Pressione {esc} mais \(count) vez(es) para desbloquear."
-        case .tr: return "Kilidi açmak için {esc} tuşuna \(count) kez daha basın."
-        case .ru: return "Нажмите {esc} ещё \(count) раз для разблокировки."
-        case .es: return "Pulsa {esc} \(count) veces más para desbloquear."
-        case .sk: return "Na odomknutie stlačte {esc} ešte \(count)×."
-        case .de: return "Zum Entsperren {esc} noch \(count)× drücken."
-        case .fr: return "Appuyez encore \(count) fois sur {esc} pour déverrouiller."
-        case .it: return "Premi {esc} ancora \(count) volte per sbloccare."
-        case .ja: return "{esc} をあと\(count)回押してロック解除。"
-        case .ko: return "{esc} 키를 \(count)번 더 눌러 잠금 해제."
-        case .uk: return "Натисніть {esc} ще \(count) разів для розблокування."
-        case .zhHans: return "再按 {esc} \(count)次解锁。"
-        case .zhTW: return "再按 {esc} \(count)次解鎖。"
-        case .zhHK: return "再按 {esc} \(count)次解鎖。"
+        case .enUS: return "Ready to return? Press {enter} or {esc}."
+        case .ptBR: return "Pronto para voltar? Pressione {enter} ou {esc}."
+        case .tr: return "Dönmeye hazır mısınız? {enter} veya {esc} tuşuna basın."
+        case .ru: return "Готовы вернуться? Нажмите {enter} или {esc}."
+        case .es: return "¿Listo para volver? Pulsa {enter} o {esc}."
+        case .sk: return "Chcete sa vrátiť? Stlačte {enter} alebo {esc}."
+        case .de: return "Bereit zurückzukehren? Drücke {enter} oder {esc}."
+        case .fr: return "Prêt à revenir ? Appuyez sur {enter} ou {esc}."
+        case .it: return "Pronto a tornare? Premi {enter} o {esc}."
+        case .ja: return "戻りますか？ {enter} または {esc} を押してください。"
+        case .ko: return "돌아오셨나요? {enter} 또는 {esc} 키를 누르세요."
+        case .uk: return "Готові повернутися? Натисніть {enter} або {esc}."
+        case .zhHans: return "准备回来了吗？按 {enter} 或 {esc}。"
+        case .zhTW: return "準備回來了嗎？按 {enter} 或 {esc}。"
+        case .zhHK: return "準備回來了嗎？按 {enter} 或 {esc}。"
         }
     }
 }

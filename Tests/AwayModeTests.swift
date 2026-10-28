@@ -5,34 +5,29 @@ import Foundation
 
 enum AwayModeTests {
     static func run(_ suite: TestSuite) {
+        for code: Int64 in [53, 36, 76] {
+            var gesture = AwayUnlockGesture()
+            suite.expect(!gesture.keyUp(code: code), "a release without a press cannot authenticate")
+            gesture.keyDown(code: code, isRepeat: true)
+            suite.expect(!gesture.keyUp(code: code), "a held key from before activation cannot authenticate")
+            gesture.keyDown(code: code, isRepeat: false)
+            suite.expect(!gesture.keyUp(code: 0), "authentication waits for the initiating key's release")
+            gesture.keyDown(code: code, isRepeat: true)
+            suite.expect(gesture.keyUp(code: code), "one deliberate Escape, Return or keypad Enter requests authentication")
+            suite.expect(!gesture.keyUp(code: code), "authentication request is consumed once")
+            gesture.keyDown(code: code, isRepeat: false)
+            gesture.reset()
+            suite.expect(!gesture.keyUp(code: code), "reset discards a pending authentication gesture")
+            gesture.keyDown(code: code, isRepeat: false)
+            suite.expect(gesture.keyUp(code: code), "a fresh press can authenticate after cancellation")
+        }
         var gesture = AwayUnlockGesture()
-        gesture.keyDown(code: 53, time: 0, isRepeat: false)
-        gesture.keyDown(code: 53, time: 0.1, isRepeat: true)
-        gesture.keyDown(code: 53, time: 0.2, isRepeat: true)
-        suite.expect(gesture.progress == 1 && !gesture.keyUp(code: 53), "holding Escape never authenticates")
-        gesture.keyDown(code: 0, time: 0.3, isRepeat: false)
-        suite.expect(gesture.progress == 0, "another key interrupts the gesture")
-        gesture.keyDown(code: 53, time: 1, isRepeat: false)
-        gesture.keyDown(code: 53, time: 4, isRepeat: false)
-        suite.expect(gesture.progress == 1, "widely spaced Escape presses do not accumulate")
-        gesture.keyDown(code: 53, time: 4.3, isRepeat: false)
-        gesture.keyDown(code: 53, time: 4.6, isRepeat: false)
-        suite.expect(gesture.progress == 3 && !gesture.keyUp(code: 0), "third Escape waits for its own key release")
-        suite.expect(gesture.keyUp(code: 53), "three deliberate Escape presses request authentication")
-        suite.expect(!gesture.keyUp(code: 53) && gesture.progress == 0, "authentication request is consumed once")
-        gesture.keyDown(code: 53, time: 5, isRepeat: false)
-        gesture.reset()
-        suite.expect(gesture.progress == 0, "cancelled sessions forget their unlock progress")
-
-        gesture.keyDown(code: 53, time: 10, isRepeat: false)
-        gesture.keyDown(code: 53, time: 11, isRepeat: true)
-        gesture.expire(at: 12)
-        suite.expect(gesture.progress == 1, "countdown remains valid at the two-second boundary")
-        gesture.expire(at: 12.1)
-        suite.expect(gesture.progress == 0, "expired countdown resets without another key; repeats do not extend it")
-        for time in [20.0, 20.1, 20.2] { gesture.keyDown(code: 53, time: time, isRepeat: false) }
-        gesture.expire(at: 23)
-        suite.expect(gesture.keyUp(code: 53), "expiry does not interrupt waiting for the final key release")
+        gesture.keyDown(code: 0, isRepeat: false)
+        suite.expect(!gesture.keyUp(code: 0), "unrelated keys cannot request authentication")
+        gesture.keyDown(code: 53, isRepeat: false)
+        gesture.keyDown(code: 36, isRepeat: false)
+        suite.expect(!gesture.keyUp(code: 36) && gesture.keyUp(code: 53),
+                     "another unlock key does not replace the initiating key")
 
         let now = Date(timeIntervalSince1970: 1000)
         func session(_ id: String, provider: AgentProvider = .claude, started: Double = 800, activity: Double = 990) -> AgentLiveSession {
@@ -102,21 +97,19 @@ enum AwayModeTests {
         defaults.set("awayMode", forKey: DefaultsKey.notchHiddenControls)
         suite.expect(!NotchSupport.controls(in: defaults).contains(.awayMode), "existing Island visibility preference hides Away action")
         for language in AppLanguage.allCases {
-            for remaining in 1...3 {
-                let hint = AwayModeStrings.escapeCountdown(language, remaining: remaining)
-                suite.expect(hint.components(separatedBy: "{esc}").count == 2,
-                             "localized sentence contains exactly one inline keycap")
-                suite.expect(hint.contains(String(remaining)),
-                             "localized hint displays remaining Escape count")
-            }
+            let hint = AwayModeStrings.unlockPrompt(language)
+            suite.expect(hint.components(separatedBy: "{enter}").count == 2
+                         && hint.components(separatedBy: "{esc}").count == 2
+                         && hint.range(of: "{enter}")!.lowerBound < hint.range(of: "{esc}")!.lowerBound,
+                         "localized prompt contains Enter then Escape keycaps exactly once")
             let appearance = AwayModeStrings.appearance(language)
             suite.expect(!appearance.overlay.isEmpty && !appearance.opacity.isEmpty
                          && !appearance.blur.isEmpty && !appearance.hint.isEmpty,
                          "Away appearance controls are localized in \(language.rawValue)")
             let strings = AwayModeStrings.get(language)
-            suite.expect(!strings.title.isEmpty && !strings.authenticate.isEmpty && strings.unlockHint.contains("3")
+            suite.expect(!strings.title.isEmpty && !strings.authenticate.isEmpty && strings.unlockHint.contains("Enter") && strings.unlockHint.contains("Esc")
                          && !AwayModeStrings.controls(language).working.isEmpty,
-                         "Away Mode has a three-press authentication hint in \(language.rawValue)")
+                         "Away Mode has a single-press authentication hint in \(language.rawValue)")
         }
     }
 }

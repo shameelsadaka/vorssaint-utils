@@ -496,7 +496,7 @@ enum CommandBarCatalog {
             entries.append(CommandBarEntry(
                 id: "action.awayMode", title: away.title,
                 subtitle: area(.awayMode, under: away.description),
-                icon: .symbol("moon.stars"), shortcut: roleShortcut(.awayMode), trouble: accessibilityTrouble(),
+                icon: .symbol(AppFeature.awayMode.symbolName), shortcut: roleShortcut(.awayMode), trouble: accessibilityTrouble(),
                 run: { _ in afterBeat(0.1) { CleaningModeManager.shared.activate(mode: .away) } }))
         }
         if AppFeature.cleaningMode.isAvailable {

@@ -3,35 +3,24 @@
 
 import Foundation
 
-/// Wait for the third Escape's release before giving macOS authentication the
-/// keyboard. Otherwise that release can dismiss the authentication sheet.
+/// Wait for the initiating key's release before giving macOS authentication
+/// the keyboard, so the same press cannot dismiss or submit its dialog.
 struct AwayUnlockGesture {
-    private var counter = CleaningUnlockCounter(requiredKeyCode: 53, threshold: 3, pressWindow: 2)
-    private var awaitingRelease = false
-    private var lastPress: TimeInterval?
-    var progress: Int { counter.progress }
+    private var pendingKey: Int64?
 
-    mutating func keyDown(code: Int64, time: TimeInterval, isRepeat: Bool) {
-        guard !awaitingRelease else { return }
-        if !isRepeat { lastPress = code == 53 ? time : nil }
-        awaitingRelease = counter.registerKeyDown(code: code, time: time, isRepeat: isRepeat)
+    mutating func keyDown(code: Int64, isRepeat: Bool) {
+        guard pendingKey == nil, !isRepeat, [53, 36, 76].contains(code) else { return }
+        pendingKey = code // Escape, Return, or numeric-keypad Enter.
     }
 
     mutating func keyUp(code: Int64) -> Bool {
-        guard code == 53, awaitingRelease else { return false }
+        guard pendingKey == code else { return false }
         reset()
         return true
     }
 
-    mutating func expire(at time: TimeInterval) {
-        guard !awaitingRelease, let lastPress, time - lastPress > 2 else { return }
-        reset()
-    }
-
     mutating func reset() {
-        lastPress = nil
-        counter.reset()
-        awaitingRelease = false
+        pendingKey = nil
     }
 }
 

@@ -174,7 +174,7 @@ extension AppFeature {
         case .colorPicker: return "eyedropper"
         case .screenOCR: return "text.viewfinder"
         case .cleaningMode: return "bubbles.and.sparkles"
-        case .awayMode: return "moon.stars"
+        case .awayMode: return "figure.walk.departure"
         case .mediaTools: return "photo.on.rectangle.angled"
         case .cleaner: return "sparkles"
         case .uninstaller: return "trash"

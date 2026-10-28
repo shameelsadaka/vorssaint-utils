@@ -47,10 +47,9 @@ struct AwayOverlayView: View {
         .frame(width: displaySize.width, height: displaySize.height)
         .overlay(alignment: .bottom) {
             if overlayEnabled, !manager.isAuthenticating {
-                AwayUnlockHint(remaining: max(1, 3 - manager.unlockProgress),
-                               isPressed: manager.isAwayEscapePressed,
-                               text: AwayModeStrings.escapeCountdown(l10n.language, remaining: 3 - manager.unlockProgress),
-                               variants: (1...3).map { AwayModeStrings.escapeCountdown(l10n.language, remaining: $0) })
+                AwayUnlockHint(isEscapePressed: manager.isAwayEscapePressed,
+                               isEnterPressed: manager.isAwayEnterPressed,
+                               text: AwayModeStrings.unlockPrompt(l10n.language))
                     .padding(.horizontal, 16)
                     .padding(.bottom, 24)
             }
@@ -93,89 +92,62 @@ private struct AwayBackdropBlur: NSViewRepresentable {
 
 /// A keyboard cue, rather than a button: input remains handled by the guard.
 private struct AwayUnlockHint: View {
-    let remaining: Int
-    let isPressed: Bool
+    let isEscapePressed: Bool
+    let isEnterPressed: Bool
     let text: String
-    let variants: [String]
+
+    var body: some View {
+        let parts = text.replacingOccurrences(of: "{enter}", with: "{esc}")
+            .components(separatedBy: "{esc}")
+        HStack(spacing: 6) {
+            caption(parts[0])
+            AwayUnlockKeycap(label: "enter", isPressed: isEnterPressed, width: 44)
+            caption(parts[1])
+            AwayUnlockKeycap(label: "esc", isPressed: isEscapePressed, width: 34)
+            caption(parts[2])
+        }
+        .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text.replacingOccurrences(of: "{enter}", with: "Enter")
+            .replacingOccurrences(of: "{esc}", with: "Escape"))
+    }
+
+    private func caption(_ value: String) -> some View {
+        Text(value.trimmingCharacters(in: .whitespaces))
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white.opacity(0.6))
+    }
+}
+
+private struct AwayUnlockKeycap: View {
+    let label: String
+    let isPressed: Bool
+    let width: CGFloat
     @State private var keycapDown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 6) {
-            stableCaption(part: 0, alignment: .trailing)
-            Text("esc")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.85))
-                .frame(width: 34, height: 25)
-                .background(.white.opacity(keycapDown ? 0.18 : 0.07), in: RoundedRectangle(cornerRadius: 6))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(.white.opacity(keycapDown ? 0.4 : 0.22), lineWidth: 0.75)
+        Text(label)
+            .font(.system(size: 11, weight: .medium, design: .rounded))
+            .foregroundStyle(.white.opacity(0.85))
+            .frame(width: width, height: 25)
+            .background(.white.opacity(keycapDown ? 0.18 : 0.07), in: RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(.white.opacity(keycapDown ? 0.4 : 0.22), lineWidth: 0.75)
+            }
+            .shadow(color: .black.opacity(0.25), radius: 0, y: 2)
+            .scaleEffect(reduceMotion || !keycapDown ? 1 : 0.94, anchor: .center)
+            .animation(reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.7), value: keycapDown)
+            .task(id: isPressed) {
+                if isPressed {
+                    keycapDown = true
+                } else {
+                    do { try await Task.sleep(for: .milliseconds(100)) }
+                    catch { return }
+                    keycapDown = false
                 }
-                .shadow(color: .black.opacity(0.25), radius: 0, y: 2)
-                .scaleEffect(reduceMotion || !keycapDown ? 1 : 0.94, anchor: .center)
-                .animation(reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.7), value: keycapDown)
-            stableCaption(part: 1, alignment: .leading)
-        }
-        .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(text.replacingOccurrences(of: "{esc}", with: "Escape"))
-        .task(id: isPressed) {
-            if isPressed {
-                keycapDown = true
-            } else {
-                // Keep even a very quick tap visible; a new press cancels this release.
-                do { try await Task.sleep(for: .milliseconds(100)) }
-                catch { return }
-                keycapDown = false
             }
-        }
-    }
-
-    private func sentencePart(_ value: String, at index: Int) -> String {
-        let parts = value.components(separatedBy: "{esc}")
-        return parts.indices.contains(index) ? parts[index].trimmingCharacters(in: .whitespaces) : ""
-    }
-
-    private func stableCaption(part: Int, alignment: Alignment) -> some View {
-        // Reserve the widest localized state on each side of the keycap.
-        // Hidden sizing copies never participate in accessibility or animation.
-        ZStack(alignment: alignment) {
-            ForEach(variants.indices, id: \.self) { index in
-                caption(sentencePart(variants[index], at: part))
-                    .hidden()
-                    .accessibilityHidden(true)
-            }
-        }
-        .overlay(alignment: alignment) {
-            counterCaption(sentencePart(text, at: part))
-        }
-    }
-
-    @ViewBuilder
-    private func counterCaption(_ value: String) -> some View {
-        if let range = value.range(of: String(remaining)) {
-            HStack(spacing: 0) {
-                Text(String(value[..<range.lowerBound]))
-                Text(String(remaining))
-                    .contentTransition(reduceMotion ? .identity : .numericText(countsDown: true))
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: remaining)
-                Text(String(value[range.upperBound...]))
-            }
-            .font(.system(size: 12, weight: .medium))
-            .monospacedDigit()
-            .foregroundStyle(.white.opacity(0.6))
-        } else {
-            caption(value)
-        }
-    }
-
-    private func caption(_ value: String) -> some View {
-        Text(value)
-            .font(.system(size: 12, weight: .medium))
-            .monospacedDigit()
-            .foregroundStyle(.white.opacity(0.6))
-
     }
 }
 
